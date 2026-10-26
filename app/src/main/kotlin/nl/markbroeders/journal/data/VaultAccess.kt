@@ -67,6 +67,12 @@ class VaultAccess(context: Context) {
         }.orEmpty()
     }
 
+    /** Reads a document as UTF-8 text. Throws if it can't be opened. */
+    suspend fun readText(node: DocNode): String = withContext(Dispatchers.IO) {
+        val stream = resolver.openInputStream(node.uri) ?: throw java.io.IOException("Can't open ${node.name}")
+        stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+    }
+
     /**
      * Walks [segments] (vault-relative) from the root. Prefers an exact name match and falls
      * back to a case-insensitive one, as Android shared storage is case-insensitive.

@@ -155,9 +155,11 @@ share target). Location and weather last.
 
 ## Next step
 
-MVP step 3: Timeline (read-only, from a direct scan). Steps 1 and 2 are done: the
-parser/writer and `VaultPaths` live in the pure-Kotlin `:core` module; `VaultAccess`
-(SAF via `DocumentsContract` queries) and `SettingsStore` (DataStore) are in `:app`.
+MVP step 4: Editor (add/edit entry, atomic save, conflict check). Steps 1–3 are done:
+the parser/writer, `VaultPaths` and the timeline model (`Timeline`, `PlainText`) live in
+the pure-Kotlin `:core` module; `VaultAccess` (SAF via `DocumentsContract` queries),
+`SettingsStore` (DataStore) and `JournalRepository` (read-only so far) are in `:app`.
+The timeline reads files directly, a page at a time, caching by document and mtime.
 
 ## Build
 

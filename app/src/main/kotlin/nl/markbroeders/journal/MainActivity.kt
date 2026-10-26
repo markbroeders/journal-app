@@ -21,9 +21,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import nl.markbroeders.journal.data.VaultSettings
 import nl.markbroeders.journal.ui.AppState
 import nl.markbroeders.journal.ui.AppViewModel
-import nl.markbroeders.journal.ui.home.HomeScreen
 import nl.markbroeders.journal.ui.setup.SetupScreen
 import nl.markbroeders.journal.ui.setup.SetupViewModel
+import nl.markbroeders.journal.ui.timeline.TimelineScreen
+import nl.markbroeders.journal.ui.timeline.TimelineViewModel
 import nl.markbroeders.journal.ui.theme.JournalTheme
 
 class MainActivity : ComponentActivity() {
@@ -68,7 +69,9 @@ private fun JournalRoot(container: AppContainer) {
                     onCancel = { editingSettings = false },
                 )
             } else {
-                HomeScreen(s, onOpenSettings = {
+                // A new vault or folder gets a fresh timeline.
+                val timeline = viewModel(key = "timeline-${s.settings}") { TimelineViewModel(container, s.settings) }
+                TimelineScreen(timeline, s.settings.journalFolder, onOpenSettings = {
                     setupSession++
                     editingSettings = true
                 })

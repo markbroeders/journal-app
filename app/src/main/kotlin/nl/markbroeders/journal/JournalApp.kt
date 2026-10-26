@@ -1,6 +1,7 @@
 package nl.markbroeders.journal
 
 import android.app.Application
+import nl.markbroeders.journal.data.JournalRepository
 import nl.markbroeders.journal.data.SettingsStore
 import nl.markbroeders.journal.data.VaultAccess
 
@@ -18,4 +19,5 @@ class JournalApp : Application() {
 class AppContainer(app: Application) {
     val settings = SettingsStore(app)
     val vaultAccess = VaultAccess(app)
+    val journal = JournalRepository(vaultAccess)
 }
