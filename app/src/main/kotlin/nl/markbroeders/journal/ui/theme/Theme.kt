@@ -1,6 +1,5 @@
 package nl.markbroeders.journal.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBarColors
@@ -17,14 +16,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 // One fixed journal blue instead of wallpaper-based dynamic colour, so the app has its own look.
-private val Blue = Color(0xFF1B7FC4)
-private val BlueLight = Color(0xFF7CC6F2)
-private val HeaderDark = Color(0xFF173A52)
+// A light sky blue for the header, and a deeper shade of it for blue text on white (readability).
+private val SkyBlue = Color(0xFF3FB2EE)
+private val Blue = Color(0xFF178BCB)
+private val BlueLight = Color(0xFF8FD3F7)
+private val HeaderDark = Color(0xFF1B4560)
 
 private val LightColors = lightColorScheme(
     primary = Blue,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFD6ECFA),
+    primaryContainer = Color(0xFFDDF1FC),
     onPrimaryContainer = Color(0xFF0B3550),
     secondary = Color(0xFF52606D),
     background = Color.White,
@@ -61,7 +62,7 @@ private val DarkColors = darkColorScheme(
 @Immutable
 data class JournalColors(val header: Color, val onHeader: Color)
 
-val LocalJournalColors = staticCompositionLocalOf { JournalColors(Blue, Color.White) }
+val LocalJournalColors = staticCompositionLocalOf { JournalColors(SkyBlue, Color.White) }
 
 private val JournalTypography = Typography().let { base ->
     base.copy(
@@ -71,10 +72,10 @@ private val JournalTypography = Typography().let { base ->
     )
 }
 
+/** Always light for now; the dark palette is kept for a later theme setting. */
 @Composable
-fun JournalTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val journalColors = if (dark) JournalColors(HeaderDark, Color.White) else JournalColors(Blue, Color.White)
+fun JournalTheme(dark: Boolean = false, content: @Composable () -> Unit) {
+    val journalColors = if (dark) JournalColors(HeaderDark, Color.White) else JournalColors(SkyBlue, Color.White)
     CompositionLocalProvider(LocalJournalColors provides journalColors) {
         MaterialTheme(
             colorScheme = if (dark) DarkColors else LightColors,

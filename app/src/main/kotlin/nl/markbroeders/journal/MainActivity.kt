@@ -35,8 +35,12 @@ import nl.markbroeders.journal.ui.theme.JournalTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The header is blue in light and dark theme, so status bar icons are always light.
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
+        // Blue header: light status bar icons. Light theme: dark navigation bar icons,
+        // whatever the system dark mode setting is.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+        )
         val container = (application as JournalApp).container
         setContent {
             JournalTheme {
