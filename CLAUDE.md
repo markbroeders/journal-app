@@ -155,8 +155,14 @@ share target). Location and weather last.
 
 ## Next step
 
-Scaffold the Gradle project and implement `DailyNoteParser` and `DailyNoteWriter`
-with tests.
+MVP step 3: Timeline (read-only, from a direct scan). Step 1 (vault picker) is still
+open too; the parser/writer (step 2) live in the pure-Kotlin `:core` module.
+
+## Build
+
+- `./gradlew :core:test` — parser/writer unit tests (fixtures in `core/src/test/resources/fixtures`)
+- `./gradlew :app:assembleDebug` — Android app (package `nl.markbroeders.journal`,
+  minSdk 26, targetSdk 36, compileSdk 37)
 
 ## Testing
 
