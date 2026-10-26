@@ -20,9 +20,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import nl.markbroeders.journal.data.EntryKey
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.data.VaultSettings
+import nl.markbroeders.journal.ui.editor.EditorScreen
+import nl.markbroeders.journal.ui.editor.EditorTarget
+import nl.markbroeders.journal.ui.editor.EditorViewModel
 import nl.markbroeders.journal.ui.entry.EntryScreen
 import nl.markbroeders.journal.ui.AppState
 import nl.markbroeders.journal.ui.AppViewModel
@@ -61,6 +69,9 @@ private fun JournalRoot(container: AppContainer) {
     var setupSession by rememberSaveable { mutableIntStateOf(0) }
     // The entry being viewed, as a saveable id; it closes if a rescan removes the entry.
     var openEntryId by rememberSaveable { mutableStateOf<String?>(null) }
+    // The editor's target ("new|date|time" or "edit|date|time|ordinal"); each opening is a new session.
+    var editorTarget by rememberSaveable { mutableStateOf<String?>(null) }
+    var editorSession by rememberSaveable { mutableIntStateOf(0) }
     val screenStates = rememberSaveableStateHolder()
 
     when (val s = state) {
@@ -90,15 +101,44 @@ private fun JournalRoot(container: AppContainer) {
                         day.entries.firstOrNull { entryId(it) == id }?.let { day to it }
                     }
                 }
-                if (open != null) {
-                    EntryScreen(open.first, open.second, onBack = { openEntryId = null })
-                } else {
-                    // Keeps the scroll position while an entry is open.
-                    screenStates.SaveableStateProvider("timeline") {
+                val editor = editorTarget?.let(::parseEditorTarget)
+                when {
+                    editor != null -> {
+                        val vm = viewModel(key = "editor-$editorSession") {
+                            EditorViewModel(container, s.settings, editor, createSavedStateHandle())
+                        }
+                        EditorScreen(vm, onClosed = {
+                            editorTarget = null
+                            timeline.refresh()
+                        })
+                    }
+                    open != null -> {
+                        val (day, entry) = open
+                        EntryScreen(
+                            day, entry,
+                            deletion = timelineState.deletion,
+                            onBack = { openEntryId = null },
+                            onEdit = {
+                                editorSession++
+                                editorTarget = "edit|${entry.date}|${entry.key.time}|${entry.key.ordinal}"
+                            },
+                            onDelete = { deleteFile ->
+                                timeline.delete(entry, deleteFile, onDeleted = { openEntryId = null })
+                            },
+                            onDismissDeletion = timeline::dismissDeletion,
+                        )
+                    }
+                    // Keeps the scroll position while another screen is open.
+                    else -> screenStates.SaveableStateProvider("timeline") {
                         TimelineScreen(
                             timeline,
                             s.settings.journalFolder,
                             onOpenEntry = { openEntryId = entryId(it) },
+                            onNewEntry = {
+                                val now = LocalDateTime.now()
+                                editorSession++
+                                editorTarget = "new|${now.toLocalDate()}|${now.toLocalTime().withSecond(0).withNano(0)}"
+                            },
                             onOpenSettings = {
                                 setupSession++
                                 editingSettings = true
@@ -111,6 +151,19 @@ private fun JournalRoot(container: AppContainer) {
 }
 
 private fun entryId(entry: TimelineEntry): String = "${entry.date}|${entry.key.time}|${entry.key.ordinal}"
+
+private fun parseEditorTarget(value: String): EditorTarget? {
+    val parts = value.split('|')
+    val date = LocalDate.parse(parts[1])
+    return when (parts[0]) {
+        "new" -> EditorTarget.New(date, LocalTime.parse(parts[2]))
+        "edit" -> EditorTarget.Existing(
+            date,
+            EntryKey(parts[2].takeIf { it != "null" }?.let(LocalTime::parse), parts[3].toInt()),
+        )
+        else -> null
+    }
+}
 
 @Composable
 private fun SetupRoute(

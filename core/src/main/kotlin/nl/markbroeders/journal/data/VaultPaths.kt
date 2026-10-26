@@ -37,7 +37,17 @@ object VaultPaths {
         return runCatching { LocalDate.of(y.toInt(), mo.toInt(), d.toInt()) }.getOrNull()
     }
 
+    /** Name of the temp file used while atomically replacing [fileName] (hidden, same folder). */
+    fun tempName(fileName: String): String = ".$fileName.tmp"
+
+    /** The file a temp file belongs to, or null if [name] isn't one of our temp files. */
+    fun targetOfTemp(name: String): String? =
+        name.takeIf { it.startsWith(".") && it.endsWith(".md.tmp") }?.removePrefix(".")?.removeSuffix(".tmp")
+            ?.takeIf { isDailyNoteName(it) }
+
+    fun dailyNoteName(date: LocalDate): String = "%s.md".format(date)
+
     /** Path segments of the daily note for [date], relative to the vault root. */
     fun dailyNotePath(journalFolder: String, date: LocalDate): List<String> =
-        segments(journalFolder) + "%04d".format(date.year) + "%s.md".format(date)
+        segments(journalFolder) + "%04d".format(date.year) + dailyNoteName(date)
 }

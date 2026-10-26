@@ -26,6 +26,8 @@ data class TimelineEntry(
     val mood: Int?,
     val tags: List<String>,
     val mediaCount: Int,
+    /** The section's exact source text, to detect changes before editing or deleting it. */
+    val raw: String,
 )
 
 object Timeline {
@@ -67,6 +69,7 @@ object Timeline {
             mood = entry.mood,
             tags = entry.tags,
             mediaCount = entry.embeds.count(Markdown::isMedia),
+            raw = entry.raw,
         )
     }
 }

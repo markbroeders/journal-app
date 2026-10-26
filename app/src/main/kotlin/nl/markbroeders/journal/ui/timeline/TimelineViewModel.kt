@@ -15,13 +15,27 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import nl.markbroeders.journal.AppContainer
+import nl.markbroeders.journal.data.EntryChange
+import nl.markbroeders.journal.data.NoteEdit
 import nl.markbroeders.journal.data.NoteFile
 import nl.markbroeders.journal.data.NoteListing
+import nl.markbroeders.journal.data.SaveResult
 import nl.markbroeders.journal.data.Timeline
 import nl.markbroeders.journal.data.TimelineDay
+import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.data.VaultSettings
 
 enum class TimelineStatus { Loading, Ready, FolderMissing, Error }
+
+/** Progress of deleting an entry from the entry screen. */
+sealed interface Deletion {
+    data object InProgress : Deletion
+
+    /** Deleting leaves the note blank: delete the file too? */
+    data class AskDeleteFile(val entry: TimelineEntry) : Deletion
+
+    data class Failed(val message: String) : Deletion
+}
 
 data class TimelineUiState(
     val status: TimelineStatus = TimelineStatus.Loading,
@@ -30,6 +44,7 @@ data class TimelineUiState(
     val refreshing: Boolean = false,
     /** Files that couldn't be read in the last load. */
     val unreadable: Int = 0,
+    val deletion: Deletion? = null,
 )
 
 /**
@@ -84,6 +99,30 @@ class TimelineViewModel(
             }
         }
     }
+
+    /**
+     * Deletes [entry] if it is unchanged on disk. [deleteBlankFile] answers
+     * [Deletion.AskDeleteFile]. Calls [onDeleted] when the entry is gone.
+     */
+    fun delete(entry: TimelineEntry, deleteBlankFile: Boolean? = null, onDeleted: () -> Unit) {
+        _state.update { it.copy(deletion = Deletion.InProgress) }
+        viewModelScope.launch {
+            val edit = NoteEdit(EntryChange.Delete(entry.key, entry.raw))
+            val deletion = when (val r = repository.save(settings, entry.date, edit, deleteBlankFile = deleteBlankFile)) {
+                is SaveResult.Saved -> null.also { onDeleted() }
+                SaveResult.NoteWouldBeBlank -> Deletion.AskDeleteFile(entry)
+                SaveResult.Conflict -> Deletion.Failed(
+                    "This entry was changed elsewhere (in Obsidian or by sync), so it wasn't deleted. " +
+                        "Check the new version and try again.",
+                )
+                is SaveResult.Failed -> Deletion.Failed(r.error.message ?: "Deleting failed.")
+            }
+            _state.update { it.copy(deletion = deletion) }
+            refresh()
+        }
+    }
+
+    fun dismissDeletion() = _state.update { it.copy(deletion = null) }
 
     /** Shows the next page of days, if there is one and nothing is loading. */
     fun loadMore() {

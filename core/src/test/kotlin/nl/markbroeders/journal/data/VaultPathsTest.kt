@@ -38,6 +38,15 @@ class VaultPathsTest {
     }
 
     @Test
+    fun `temp file names`() {
+        assertEquals(".2026-10-26.md.tmp", VaultPaths.tempName("2026-10-26.md"))
+        assertEquals("2026-10-26.md", VaultPaths.targetOfTemp(".2026-10-26.md.tmp"))
+        assertNull(VaultPaths.targetOfTemp("2026-10-26.md.tmp"))
+        assertNull(VaultPaths.targetOfTemp(".notes.md.tmp"))
+        assertNull(VaultPaths.targetOfTemp(".2026-10-26.md"))
+    }
+
+    @Test
     fun `daily note path`() {
         assertEquals(
             listOf("Notes", "Journal", "2026", "2026-01-09.md"),

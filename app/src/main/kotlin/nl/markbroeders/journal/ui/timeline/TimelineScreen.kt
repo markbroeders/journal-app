@@ -1,6 +1,7 @@
 package nl.markbroeders.journal.ui.timeline
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,12 +18,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +57,7 @@ import nl.markbroeders.journal.ui.components.moodEmoji
 import nl.markbroeders.journal.ui.components.timeLabel
 import nl.markbroeders.journal.ui.components.weatherIcon
 import nl.markbroeders.journal.ui.components.weekdayShort
+import nl.markbroeders.journal.ui.theme.LocalJournalColors
 import nl.markbroeders.journal.ui.theme.journalTopBarColors
 import java.time.LocalDate
 import java.time.YearMonth
@@ -65,6 +69,7 @@ fun TimelineScreen(
     viewModel: TimelineViewModel,
     journalFolder: String,
     onOpenEntry: (TimelineEntry) -> Unit,
+    onNewEntry: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -88,6 +93,16 @@ fun TimelineScreen(
                 colors = journalTopBarColors(),
                 scrollBehavior = scrollBehavior,
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onNewEntry,
+                shape = CircleShape,
+                containerColor = LocalJournalColors.current.header,
+                contentColor = LocalJournalColors.current.onHeader,
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "New entry")
+            }
         },
     ) { padding ->
         PullToRefreshBox(
@@ -120,7 +135,8 @@ private fun TimelineList(state: TimelineUiState, onOpenEntry: (TimelineEntry) ->
     LoadMoreEffect(listState, onLoadMore)
     LazyColumn(
         state = listState,
-        contentPadding = PaddingValues(bottom = 24.dp),
+        // Room for the floating + button.
+        contentPadding = PaddingValues(bottom = 96.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
         if (state.unreadable > 0) {

@@ -14,7 +14,10 @@ must be fully interchangeable: anything written in one must look right in the ot
   at any time. Before saving, compare the file's on-disk `lastModified` with the value
   at open time; if it changed, re-read and merge (adding a new entry) or warn the user
   (editing an existing one) instead of overwriting.
-- **Atomic writes.** Write to a temp file in the same folder, then rename.
+- **Atomic writes.** Write to a temp file in the same folder, then rename. SAF can't rename
+  over an existing file, so the app writes `.YYYY-MM-DD.md.tmp`, deletes the original, then
+  renames the temp file; a leftover temp file is recovered (or discarded if the original
+  still exists) on the next listing. Saves and listings share one lock.
 - **Preserve what we don't understand.** Keep unknown frontmatter keys (and their order)
   and any body text outside recognised entry sections, byte for byte.
 - **Everything is optional.** Daily notes created in Obsidian may have no frontmatter,
@@ -155,11 +158,16 @@ share target). Location and weather last.
 
 ## Next step
 
-MVP step 4: Editor (add/edit entry, atomic save, conflict check). Steps 1–3 are done:
-the parser/writer, `VaultPaths` and the timeline model (`Timeline`, `PlainText`) live in
+MVP step 5: IndexDb + VaultScanner. Steps 1–4 are done: the parser/writer, `VaultPaths`,
+the timeline model (`Timeline`, `PlainText`) and the save/merge logic (`NoteEdits`) live in
 the pure-Kotlin `:core` module; `VaultAccess` (SAF via `DocumentsContract` queries),
-`SettingsStore` (DataStore) and `JournalRepository` (read-only so far) are in `:app`.
-The timeline reads files directly, a page at a time, caching by document and mtime.
+`SettingsStore` (DataStore) and `JournalRepository` (load, save, atomic replace, temp-file
+recovery) are in `:app`. The timeline reads files directly, a page at a time, caching by
+document and mtime.
+
+Conflict handling: every save re-reads the file and applies the change to what is on disk
+now. Adds always merge; an edit/delete only applies if the entry's raw text is unchanged
+since it was opened, otherwise the user chooses (keep mine / discard mine).
 
 ## Build
 
