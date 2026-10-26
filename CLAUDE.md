@@ -155,8 +155,9 @@ share target). Location and weather last.
 
 ## Next step
 
-MVP step 3: Timeline (read-only, from a direct scan). Step 1 (vault picker) is still
-open too; the parser/writer (step 2) live in the pure-Kotlin `:core` module.
+MVP step 3: Timeline (read-only, from a direct scan). Steps 1 and 2 are done: the
+parser/writer and `VaultPaths` live in the pure-Kotlin `:core` module; `VaultAccess`
+(SAF via `DocumentsContract` queries) and `SettingsStore` (DataStore) are in `:app`.
 
 ## Build
 
