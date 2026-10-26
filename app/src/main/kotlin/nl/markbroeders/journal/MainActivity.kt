@@ -1,6 +1,8 @@
 package nl.markbroeders.journal
 
+import android.graphics.Color
 import android.os.Bundle
+import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -13,12 +15,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.data.VaultSettings
+import nl.markbroeders.journal.ui.entry.EntryScreen
 import nl.markbroeders.journal.ui.AppState
 import nl.markbroeders.journal.ui.AppViewModel
 import nl.markbroeders.journal.ui.setup.SetupScreen
@@ -30,7 +35,8 @@ import nl.markbroeders.journal.ui.theme.JournalTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The header is blue in light and dark theme, so status bar icons are always light.
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
         val container = (application as JournalApp).container
         setContent {
             JournalTheme {
@@ -49,6 +55,9 @@ private fun JournalRoot(container: AppContainer) {
     var editingSettings by rememberSaveable { mutableStateOf(false) }
     // Each visit to the setup screen gets a fresh SetupViewModel.
     var setupSession by rememberSaveable { mutableIntStateOf(0) }
+    // The entry being viewed, as a saveable id; it closes if a rescan removes the entry.
+    var openEntryId by rememberSaveable { mutableStateOf<String?>(null) }
+    val screenStates = rememberSaveableStateHolder()
 
     when (val s = state) {
         AppState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -71,13 +80,33 @@ private fun JournalRoot(container: AppContainer) {
             } else {
                 // A new vault or folder gets a fresh timeline.
                 val timeline = viewModel(key = "timeline-${s.settings}") { TimelineViewModel(container, s.settings) }
-                TimelineScreen(timeline, s.settings.journalFolder, onOpenSettings = {
-                    setupSession++
-                    editingSettings = true
-                })
+                val timelineState by timeline.state.collectAsStateWithLifecycle()
+                val open = openEntryId?.let { id ->
+                    timelineState.days.firstNotNullOfOrNull { day ->
+                        day.entries.firstOrNull { entryId(it) == id }?.let { day to it }
+                    }
+                }
+                if (open != null) {
+                    EntryScreen(open.first, open.second, onBack = { openEntryId = null })
+                } else {
+                    // Keeps the scroll position while an entry is open.
+                    screenStates.SaveableStateProvider("timeline") {
+                        TimelineScreen(
+                            timeline,
+                            s.settings.journalFolder,
+                            onOpenEntry = { openEntryId = entryId(it) },
+                            onOpenSettings = {
+                                setupSession++
+                                editingSettings = true
+                            },
+                        )
+                    }
+                }
             }
     }
 }
+
+private fun entryId(entry: TimelineEntry): String = "${entry.date}|${entry.key.time}|${entry.key.ordinal}"
 
 @Composable
 private fun SetupRoute(

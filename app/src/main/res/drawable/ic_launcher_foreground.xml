@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A journal page: a white sheet with a heading bar and text lines cut out (even-odd),
+     so the same shape works as the themed (monochrome) icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M40,30 h28 a5,5 0 0 1 5,5 v38 a5,5 0 0 1 -5,5 h-28 a5,5 0 0 1 -5,-5 v-38 a5,5 0 0 1 5,-5 z
+            M41,37 h14 v4.5 h-14 z
+            M41,47 h26 v3 h-26 z
+            M41,54 h26 v3 h-26 z
+            M41,61 h26 v3 h-26 z
+            M41,68 h16 v3 h-16 z" />
+</vector>

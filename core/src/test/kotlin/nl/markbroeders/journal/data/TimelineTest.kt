@@ -42,6 +42,19 @@ class TimelineTest {
     }
 
     @Test
+    fun `title is the first line and preview the rest`() {
+        val d = day("2024/2024-03-14.md")!!.entries.single()
+        assertTrue(d.title.startsWith("Rustige dag thuis gewerkt."))
+        assertEquals(
+            "Avond: boek uitgelezen (Klara and the Sun). Mooi einde. bibliotheekboeken terugbrengen verjaardagskaart oma",
+            d.preview,
+        )
+        val empty = Timeline.day(DailyNoteParser.parse("## 09:00\n"), LocalDate.of(2026, 1, 1))!!.entries.single()
+        assertEquals("", empty.title)
+        assertEquals("", empty.preview)
+    }
+
+    @Test
     fun `days without entries are skipped`() {
         assertNull(day("2026/2026-03-08.md"))
         assertNull(day("2026/2026-04-01.md"))
@@ -53,7 +66,8 @@ class TimelineTest {
         assertEquals(listOf(2, 2), d.entries.map { it.mediaCount })
         assertEquals(listOf("tuin"), d.entries[1].tags)
         assertEquals("BBQ met familie in de tuin.\n\nNog een losse foto met gewone markdown-syntax:", d.entries[0].text)
-        assertEquals("BBQ met familie in de tuin.\nNog een losse foto met gewone markdown-syntax:", d.entries[0].snippet)
+        assertEquals("BBQ met familie in de tuin.", d.entries[0].title)
+        assertEquals("Nog een losse foto met gewone markdown-syntax:", d.entries[0].preview)
     }
 
     @Test

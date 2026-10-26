@@ -15,8 +15,10 @@ data class TimelineDay(
 data class TimelineEntry(
     val date: LocalDate,
     val key: EntryKey,
-    /** Plain-text preview: shortened, without blank lines. */
-    val snippet: String,
+    /** First line of the text, shown as the entry's title (empty if there is no text). */
+    val title: String,
+    /** The text after the title as one shortened line of prose, for list previews. */
+    val preview: String,
     /** Plain text of the whole body, paragraphs separated by one blank line. */
     val text: String,
     val location: String?,
@@ -28,7 +30,8 @@ data class TimelineEntry(
 
 object Timeline {
 
-    const val SNIPPET_LENGTH = 280
+    const val TITLE_LENGTH = 120
+    const val PREVIEW_LENGTH = 280
 
     /**
      * Builds the timeline day for a note stored at [date] (the date from its path, which is
@@ -52,10 +55,12 @@ object Timeline {
 
     private fun entry(entry: Entry, date: LocalDate): TimelineEntry {
         val text = PlainText.from(entry.body)
+        val lines = text.lines().filter { it.isNotBlank() }
         return TimelineEntry(
             date = date,
             key = entry.key,
-            snippet = PlainText.shorten(text.replace("\n\n", "\n"), SNIPPET_LENGTH),
+            title = PlainText.shorten(lines.firstOrNull().orEmpty(), TITLE_LENGTH),
+            preview = PlainText.shorten(lines.drop(1).joinToString(" "), PREVIEW_LENGTH),
             text = text,
             location = entry.location?.takeIf { it.isNotBlank() },
             weather = entry.weather?.takeIf { it.isNotBlank() },

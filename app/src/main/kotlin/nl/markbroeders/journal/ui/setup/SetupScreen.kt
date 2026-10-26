@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nl.markbroeders.journal.data.VaultPaths
+import nl.markbroeders.journal.ui.theme.journalTopBarColors
 
 /**
  * Picks the vault root and the journal folder inside it. [onCancel] is null during first-run
@@ -74,6 +75,7 @@ fun SetupScreen(
                         }
                     }
                 },
+                colors = journalTopBarColors(),
             )
         },
     ) { padding ->

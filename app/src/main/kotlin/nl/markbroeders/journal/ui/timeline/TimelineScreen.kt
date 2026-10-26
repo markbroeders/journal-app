@@ -1,11 +1,10 @@
 package nl.markbroeders.journal.ui.timeline
 
-import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,33 +15,32 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -51,10 +49,14 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import nl.markbroeders.journal.data.TimelineDay
 import nl.markbroeders.journal.data.TimelineEntry
+import nl.markbroeders.journal.ui.components.monthYear
+import nl.markbroeders.journal.ui.components.moodEmoji
+import nl.markbroeders.journal.ui.components.timeLabel
+import nl.markbroeders.journal.ui.components.weatherIcon
+import nl.markbroeders.journal.ui.components.weekdayShort
+import nl.markbroeders.journal.ui.theme.journalTopBarColors
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.TextStyle
-import java.util.Locale
+import java.time.YearMonth
 
 /** Reverse-chronological feed of entries, read straight from the vault. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,6 +64,7 @@ import java.util.Locale
 fun TimelineScreen(
     viewModel: TimelineViewModel,
     journalFolder: String,
+    onOpenEntry: (TimelineEntry) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -70,16 +73,20 @@ fun TimelineScreen(
         viewModel.refresh()
         onPauseOrDispose {}
     }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
+            LargeTopAppBar(
                 title = { Text("Journal") },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Vault settings")
+                        Icon(Icons.Outlined.Settings, contentDescription = "Vault settings")
                     }
                 },
+                colors = journalTopBarColors(),
+                scrollBehavior = scrollBehavior,
             )
         },
     ) { padding ->
@@ -101,20 +108,19 @@ fun TimelineScreen(
                     action = "Try again" to { viewModel.refresh(userInitiated = true) },
                 )
                 state.days.isEmpty() && !state.hasMore -> Message("No entries yet.")
-                else -> TimelineList(state, viewModel::loadMore)
+                else -> TimelineList(state, onOpenEntry, viewModel::loadMore)
             }
         }
     }
 }
 
 @Composable
-private fun TimelineList(state: TimelineUiState, onLoadMore: () -> Unit) {
+private fun TimelineList(state: TimelineUiState, onOpenEntry: (TimelineEntry) -> Unit, onLoadMore: () -> Unit) {
     val listState = rememberLazyListState()
     LoadMoreEffect(listState, onLoadMore)
     LazyColumn(
         state = listState,
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
         if (state.unreadable > 0) {
@@ -123,12 +129,24 @@ private fun TimelineList(state: TimelineUiState, onLoadMore: () -> Unit) {
                     "${state.unreadable} ${if (state.unreadable == 1) "note" else "notes"} couldn't be read.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(16.dp),
                 )
             }
         }
+        var month: YearMonth? = null
         for (day in state.days) {
-            item(key = "day-${day.date}") { DayHeader(day) }
-            items(day.entries, key = { "entry-${it.date}-${it.key.time}-${it.key.ordinal}" }) { EntryCard(it) }
+            val dayMonth = YearMonth.from(day.date)
+            if (dayMonth != month) {
+                month = dayMonth
+                stickyHeader(key = "month-$dayMonth") { MonthHeader(day.date) }
+            }
+            day.entries.forEachIndexed { i, entry ->
+                item(key = "entry-${entry.date}-${entry.key.time}-${entry.key.ordinal}") {
+                    EntryRow(day, entry, firstOfDay = i == 0, lastOfDay = i == day.entries.lastIndex) {
+                        onOpenEntry(entry)
+                    }
+                }
+            }
         }
         if (state.hasMore) {
             item(key = "more") {
@@ -156,116 +174,127 @@ private fun LoadMoreEffect(listState: LazyListState, onLoadMore: () -> Unit) {
 }
 
 @Composable
-private fun DayHeader(day: TimelineDay) {
-    val locale = Locale.getDefault()
+private fun MonthHeader(date: LocalDate) {
+    Text(
+        monthYear(date),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+}
+
+private val DateColumnWidth = 44.dp
+
+/** Day One-style row: date column (first entry of the day only), bold title, grey preview, meta line. */
+@Composable
+private fun EntryRow(
+    day: TimelineDay,
+    entry: TimelineEntry,
+    firstOfDay: Boolean,
+    lastOfDay: Boolean,
+    onClick: () -> Unit,
+) {
     val today = LocalDate.now()
-    val weekday = when (day.date) {
-        today -> "Today"
-        today.minusDays(1) -> "Yesterday"
-        else -> day.date.dayOfWeek.getDisplayName(TextStyle.FULL, locale).replaceFirstChar { it.titlecase(locale) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
+    ) {
+        Column(Modifier.width(DateColumnWidth), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (firstOfDay) {
+                Text(
+                    weekdayShort(entry.date),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (entry.date == today) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "${entry.date.dayOfMonth}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = if (entry.date == today) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+                )
+                if (day.starred || day.mood != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        day.mood?.let { Text(moodEmoji(it), style = MaterialTheme.typography.labelMedium) }
+                        if (day.starred) {
+                            Icon(
+                                Icons.Rounded.Star,
+                                contentDescription = "Starred day",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (entry.title.isNotEmpty()) {
+                Text(
+                    entry.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (entry.preview.isNotEmpty()) {
+                Text(
+                    entry.preview,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            MetaLine(entry)
+        }
     }
-    val monthYear = day.date.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))
+    if (!lastOfDay) {
+        HorizontalDivider(Modifier.padding(start = 16.dp + DateColumnWidth + 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+    } else {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+@Composable
+private fun MetaLine(entry: TimelineEntry) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.padding(top = 2.dp),
     ) {
-        Text("${day.date.dayOfMonth}", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(weekday, style = MaterialTheme.typography.titleSmall)
-            Text(
-                monthYear,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Text(timeLabel(entry.key), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        entry.mood?.let {
+            Text(moodEmoji(it), style = MaterialTheme.typography.labelMedium)
         }
-        day.mood?.let { Text(moodEmoji(it), style = MaterialTheme.typography.titleMedium) }
-        if (day.starred) {
-            Spacer(Modifier.width(8.dp))
-            Icon(Icons.Filled.Star, contentDescription = "Starred", tint = MaterialTheme.colorScheme.primary)
+        if (entry.mediaCount > 0) MetaItem(Icons.Outlined.PhotoCamera, "${entry.mediaCount}")
+        entry.weather?.let { MetaItem(weatherIcon(it), it.substringBefore(',').trim()) }
+        entry.location?.let {
+            MetaItem(Icons.Outlined.Place, it.substringBefore('(').trim(), Modifier.weight(1f, fill = false))
         }
     }
 }
 
 @Composable
-private fun EntryCard(entry: TimelineEntry) {
-    var expanded by rememberSaveable(entry.date, entry.key) { mutableStateOf(false) }
-    val canExpand = entry.text != entry.snippet || entry.text.lines().size > COLLAPSED_LINES
-    Card(Modifier.fillMaxWidth().animateContentSize()) {
-        // Not Card(onClick, enabled): a disabled card greys out its content.
-        Column(
-            Modifier
-                .clickable(enabled = canExpand) { expanded = !expanded }
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    entry.key.time?.toString() ?: "Day note",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                )
-                if (entry.mediaCount > 0) {
-                    Text(
-                        "${entry.mediaCount} ${if (entry.mediaCount == 1) "photo" else "photos"}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                entry.mood?.let {
-                    Spacer(Modifier.width(8.dp))
-                    Text(moodEmoji(it))
-                }
-            }
-            if (entry.text.isNotEmpty()) {
-                Text(
-                    if (expanded) entry.text else entry.snippet,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = if (expanded) Int.MAX_VALUE else COLLAPSED_LINES,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            val meta = listOfNotNull(entry.location, entry.weather)
-            if (meta.isNotEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (entry.location != null) {
-                        Icon(
-                            Icons.Filled.Place,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    Text(
-                        meta.joinToString("  ·  "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (entry.tags.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (tag in entry.tags) {
-                        Text("#$tag", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-        }
+private fun MetaItem(icon: ImageVector, text: String, modifier: Modifier = Modifier) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
+        Icon(icon, contentDescription = null, tint = muted, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(3.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium,
+            color = muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
-}
-
-private const val COLLAPSED_LINES = 6
-
-private fun moodEmoji(mood: Int): String = when (mood) {
-    1 -> "😞"
-    2 -> "🙁"
-    3 -> "😐"
-    4 -> "🙂"
-    else -> "😄"
 }
 
 @Composable
@@ -273,9 +302,7 @@ private fun Centered(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
 }
 
-/**
- * Full-screen message. Wrapped in a scrollable list so pull-to-refresh still works.
- */
+/** Full-screen message. Wrapped in a scrollable list so pull-to-refresh still works. */
 @Composable
 private fun Message(text: String, action: Pair<String, () -> Unit>? = null) {
     LazyColumn(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
