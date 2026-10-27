@@ -158,7 +158,15 @@ share target). Location and weather last.
 
 ## Next step
 
-MVP is done (steps 1–5), plus calendar, On This Day and the media grid; next up: search.
+MVP is done (steps 1–5), plus calendar, On This Day, the media grid and adding photos.
+
+**Next up: search** (`ui/search/`): full-text and tag search over the index. Entry rows already
+hold plain `text` and `tags` (frontmatter tags are on `notes`); likely an FTS4/FTS5 table kept in
+step with `entries` in `IndexDao.replace`/`remove`/`reset`, a Search tab or a search action on the
+timeline, results as `EntryRow`s that open the entry. Possible after that: photos at their
+position inside the entry text, a share target / home-screen widget for quick capture, then
+location and weather.
+
 The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
 logic (`NoteEdits`) and the rescan diff (`IndexPlan`) live in the pure-Kotlin `:core` module;
 `VaultAccess` (SAF via `DocumentsContract` queries), `SettingsStore` (DataStore),
