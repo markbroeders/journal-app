@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +57,8 @@ import nl.markbroeders.journal.ui.onthisday.OnThisDayScreen
 import nl.markbroeders.journal.ui.onthisday.OnThisDayViewModel
 import nl.markbroeders.journal.ui.AppState
 import nl.markbroeders.journal.ui.AppViewModel
+import nl.markbroeders.journal.ui.search.SearchScreen
+import nl.markbroeders.journal.ui.search.SearchViewModel
 import nl.markbroeders.journal.ui.setup.SetupScreen
 import nl.markbroeders.journal.ui.setup.SetupViewModel
 import nl.markbroeders.journal.ui.timeline.TimelineScreen
@@ -124,6 +127,7 @@ private fun JournalRoot(container: AppContainer) {
                 val calendar = viewModel(key = "calendar-${s.settings}") { CalendarViewModel(container) }
                 val onThisDay = viewModel(key = "onthisday-${s.settings}") { OnThisDayViewModel(container) }
                 val media = viewModel(key = "media-${s.settings}") { MediaViewModel(container) }
+                val search = viewModel(key = "search-${s.settings}") { SearchViewModel(container) }
                 val mediaItems by media.media.collectAsStateWithLifecycle()
                 val timelineState by timeline.state.collectAsStateWithLifecycle()
                 // Re-scan whenever the app comes back: Obsidian or sync may have changed files.
@@ -184,6 +188,16 @@ private fun JournalRoot(container: AppContainer) {
                         onOpenEntry = { openEntryId = entryId(it) },
                         onBack = { showOnThisDay = false },
                     )
+                    tab == Tab.Search -> {
+                        BackHandler { tab = Tab.Timeline }
+                        screenStates.SaveableStateProvider("search") {
+                            SearchScreen(
+                                search,
+                                onOpenEntry = { openEntryId = entryId(it) },
+                                bottomBar = bottomBar,
+                            )
+                        }
+                    }
                     tab == Tab.Media -> {
                         BackHandler { tab = Tab.Timeline }
                         screenStates.SaveableStateProvider("media") {
@@ -232,7 +246,7 @@ private fun JournalRoot(container: AppContainer) {
     }
 }
 
-private enum class Tab { Timeline, Calendar, Media }
+private enum class Tab { Timeline, Calendar, Search, Media }
 
 @Composable
 private fun JournalNavigationBar(selected: Tab, onSelect: (Tab) -> Unit) {
@@ -254,6 +268,13 @@ private fun JournalNavigationBar(selected: Tab, onSelect: (Tab) -> Unit) {
             onClick = { onSelect(Tab.Calendar) },
             icon = { Icon(Icons.Outlined.CalendarMonth, contentDescription = null) },
             label = { Text("Calendar") },
+            colors = colors,
+        )
+        NavigationBarItem(
+            selected = selected == Tab.Search,
+            onClick = { onSelect(Tab.Search) },
+            icon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+            label = { Text("Search") },
             colors = colors,
         )
         NavigationBarItem(

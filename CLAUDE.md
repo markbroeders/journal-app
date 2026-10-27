@@ -158,18 +158,15 @@ share target). Location and weather last.
 
 ## Next step
 
-MVP is done (steps 1–5), plus calendar, On This Day, the media grid and adding photos.
+MVP is done (steps 1–5), plus calendar, On This Day, the media grid, adding photos and search.
 
-**Next up: search** (`ui/search/`): full-text and tag search over the index. Entry rows already
-hold plain `text` and `tags` (frontmatter tags are on `notes`); likely an FTS4/FTS5 table kept in
-step with `entries` in `IndexDao.replace`/`remove`/`reset`, a Search tab or a search action on the
-timeline, results as `EntryRow`s that open the entry. Possible after that: photos at their
-position inside the entry text, a share target / home-screen widget for quick capture, then
+**Next up:** photos at their position inside the entry text (the entry screen now shows them all
+below the text). Possible after that: a share target / home-screen widget for quick capture, then
 location and weather.
 
 The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
-logic (`NoteEdits`) and the rescan diff (`IndexPlan`) live in the pure-Kotlin `:core` module;
-`VaultAccess` (SAF via `DocumentsContract` queries), `SettingsStore` (DataStore),
+logic (`NoteEdits`), the rescan diff (`IndexPlan`) and the search syntax (`SearchQuery`) live
+in the pure-Kotlin `:core` module; `VaultAccess` (SAF via `DocumentsContract` queries), `SettingsStore` (DataStore),
 `JournalRepository` (load, save, atomic replace, temp-file recovery) and `IndexDb` (Room) are
 in `:app`, with `VaultScanner` and the periodic `ScanWorker` in `sync/`.
 
@@ -198,6 +195,13 @@ the attachment folder as `YYYY-MM-DD-HHmm-N.jpg` (`Photos.nextName`, never overw
 untimed entry uses the current time) and `Photos.insertEmbeds` puts the embeds at the cursor as
 their own paragraph. Photos added in an editor session but no longer embedded when it closes
 (or all of them on discard) are deleted again.
+
+Search: a Search tab. `entries_fts` is an FTS4 table (unicode61: case- and accent-insensitive)
+over the entries' plain `text` and `location`, kept in step with `entries` by Room's triggers
+(entries have an explicit `id` rowid for it). `SearchQuery` parses words (prefix matches),
+`"phrases"` and `#tags` (inline or frontmatter, nested tags included, via `LIKE`); `SearchSql`
+builds the raw query, observed so results follow rescans. Results are grouped by day with FTS
+`snippet()`s highlighted; with an empty field the tab lists all tags as chips.
 
 Conflict handling: every save re-reads the file and applies the change to what is on disk
 now. Adds always merge; an edit/delete only applies if the entry's raw text is unchanged

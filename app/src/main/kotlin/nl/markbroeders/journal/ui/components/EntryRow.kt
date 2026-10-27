@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import nl.markbroeders.journal.data.TimelineDay
@@ -32,6 +33,7 @@ private val DateColumnWidth = 44.dp
 /**
  * Day One-style row: date column (first entry of the day only), bold title, grey preview, meta
  * line. Without [dateColumn] (a list of one day's entries) the row starts at the title.
+ * [preview] replaces the entry's own preview, e.g. with a search snippet.
  */
 @Composable
 fun EntryRow(
@@ -40,6 +42,7 @@ fun EntryRow(
     firstOfDay: Boolean,
     lastOfDay: Boolean,
     dateColumn: Boolean = true,
+    preview: AnnotatedString? = null,
     onClick: () -> Unit,
 ) {
     val today = LocalDate.now()
@@ -90,9 +93,10 @@ fun EntryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (entry.preview.isNotEmpty()) {
+            val previewText = preview ?: AnnotatedString(entry.preview)
+            if (previewText.isNotEmpty()) {
                 Text(
-                    entry.preview,
+                    previewText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,

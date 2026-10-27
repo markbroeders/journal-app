@@ -7,10 +7,13 @@ import androidx.room.Database
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Fts4
+import androidx.room.FtsOptions
 import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.RawQuery
 import androidx.room.Relation
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -18,6 +21,8 @@ import androidx.room.Transaction
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Upsert
+import androidx.sqlite.db.SimpleSQLiteQuery
+import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.LocalTime
@@ -41,14 +46,16 @@ data class NoteRow(
     val readFailed: Boolean,
 )
 
-/** One entry of a note, in timeline order ([position] 0 is the newest). */
+/**
+ * One entry of a note, in timeline order ([position] 0 is the newest). The explicit [id] is the
+ * rowid that [EntryFts] refers to; an implicit rowid could be renumbered by a `VACUUM`.
+ */
 @Entity(
     tableName = "entries",
-    primaryKeys = ["documentId", "position"],
     foreignKeys = [
         ForeignKey(NoteRow::class, ["documentId"], ["documentId"], onDelete = ForeignKey.CASCADE),
     ],
-    indices = [Index("date")],
+    indices = [Index("documentId", "position", unique = true), Index("date")],
 )
 data class EntryRow(
     val documentId: String,
@@ -68,6 +75,25 @@ data class EntryRow(
     /** Media embed targets, in order (see [MediaRow] for lookups). */
     val media: List<String>,
     val raw: String,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+)
+
+/**
+ * Full-text index over the entries' plain text and location. Room keeps it in step with
+ * `entries` through triggers. unicode61 folds case and diacritics, so `cafe` finds `café`.
+ */
+@Fts4(contentEntity = EntryRow::class, tokenizer = FtsOptions.TOKENIZER_UNICODE61)
+@Entity(tableName = "entries_fts")
+data class EntryFts(val text: String, val location: String?)
+
+/** An entry found by a search, with its day's metadata and a highlighted [snippet]. */
+data class SearchHit(
+    @Embedded val entry: EntryRow,
+    val dayStarred: Boolean,
+    val dayMood: Int?,
+    val dayTags: List<String>,
+    /** Matched text with [SearchSql.MARK_START]/[SearchSql.MARK_END] around the matches. */
+    val snippet: String?,
 )
 
 /**
@@ -177,6 +203,16 @@ interface IndexDao {
         insertAttachments(rows)
     }
 
+    @RawQuery(observedEntities = [EntryRow::class, NoteRow::class])
+    fun search(query: SupportSQLiteQuery): Flow<List<SearchHit>>
+
+    /** The tag lists of all entries and of all days with entries, newline-joined. */
+    @Query(
+        "SELECT tags FROM entries WHERE tags != '' " +
+            "UNION ALL SELECT tags FROM notes WHERE entryCount > 0 AND tags != ''",
+    )
+    fun observeTagLists(): Flow<List<String>>
+
     @Query("SELECT COUNT(*) FROM notes WHERE readFailed")
     fun observeUnreadable(): Flow<Int>
 
@@ -277,8 +313,10 @@ class IndexConverters {
  * schema change just recreates it.
  */
 @Database(
-    entities = [NoteRow::class, EntryRow::class, MediaRow::class, AttachmentRow::class, MetaRow::class],
-    version = 2,
+    entities = [
+        NoteRow::class, EntryRow::class, EntryFts::class, MediaRow::class, AttachmentRow::class, MetaRow::class,
+    ],
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(IndexConverters::class)
@@ -313,19 +351,54 @@ fun NoteWithEntries.toTimelineDay(): TimelineDay = TimelineDay(
     starred = note.starred,
     mood = note.mood,
     tags = note.tags,
-    entries = entries.sortedBy { it.position }.map { e ->
-        TimelineEntry(
-            date = e.date,
-            key = EntryKey(e.time, e.ordinal),
-            title = e.title,
-            preview = e.preview,
-            text = e.text,
-            location = e.location,
-            weather = e.weather,
-            mood = e.mood,
-            tags = e.tags,
-            media = e.media,
-            raw = e.raw,
-        )
-    },
+    entries = entries.sortedBy { it.position }.map { it.toTimelineEntry() },
 )
+
+fun EntryRow.toTimelineEntry(): TimelineEntry = TimelineEntry(
+    date = date,
+    key = EntryKey(time, ordinal),
+    title = title,
+    preview = preview,
+    text = text,
+    location = location,
+    weather = weather,
+    mood = mood,
+    tags = tags,
+    media = media,
+    raw = raw,
+)
+
+/** Builds the [IndexDao.search] query for a [SearchQuery]: newest entries first. */
+object SearchSql {
+    const val MARK_START = '\uE000'
+    const val MARK_END = '\uE001'
+
+    fun build(query: SearchQuery, limit: Int): SupportSQLiteQuery {
+        val args = mutableListOf<Any>()
+        val match = query.matchExpression()
+        val sql = StringBuilder("SELECT e.*, n.starred AS dayStarred, n.mood AS dayMood, n.tags AS dayTags, ")
+        if (match != null) {
+            sql.append("snippet(entries_fts, '$MARK_START', '$MARK_END', '…', -1, 20) AS snippet ")
+            sql.append("FROM entries_fts JOIN entries e ON e.id = entries_fts.docid ")
+        } else {
+            sql.append("NULL AS snippet FROM entries e ")
+        }
+        sql.append("JOIN notes n ON n.documentId = e.documentId WHERE 1 ")
+        if (match != null) {
+            sql.append("AND entries_fts MATCH ? ")
+            args += match
+        }
+        for (tag in query.tags) {
+            val conditions = listOf("e.tags", "n.tags").flatMap { column ->
+                query.tagPatterns(tag).map { pattern ->
+                    args += pattern
+                    "(char(10) || $column || char(10)) LIKE ? ESCAPE '\\'"
+                }
+            }
+            sql.append("AND (${conditions.joinToString(" OR ")}) ")
+        }
+        sql.append("ORDER BY e.date DESC, e.documentId, e.position LIMIT ?")
+        args += limit
+        return SimpleSQLiteQuery(sql.toString(), args.toTypedArray())
+    }
+}
