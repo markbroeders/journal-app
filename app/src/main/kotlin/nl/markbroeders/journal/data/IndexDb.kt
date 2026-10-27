@@ -101,6 +101,17 @@ interface IndexDao {
     )
     fun observeMarkedDays(from: LocalDate, to: LocalDate): Flow<List<DayMarkRow>>
 
+    /**
+     * Notes with entries from before [before] whose date ends in one of [monthDays] (`MM-DD`),
+     * newest first: the same day in earlier years.
+     */
+    @Transaction
+    @Query(
+        "SELECT * FROM notes WHERE entryCount > 0 AND date < :before AND substr(date, 6) IN (:monthDays) " +
+            "ORDER BY date DESC, documentId",
+    )
+    fun observeOnThisDay(monthDays: List<String>, before: LocalDate): Flow<List<NoteWithEntries>>
+
     @Query("SELECT COUNT(*) FROM notes WHERE readFailed")
     fun observeUnreadable(): Flow<Int>
 

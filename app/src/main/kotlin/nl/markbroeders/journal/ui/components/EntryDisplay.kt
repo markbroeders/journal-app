@@ -1,5 +1,6 @@
 package nl.markbroeders.journal.ui.components
 
+import android.text.format.DateFormat
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AcUnit
 import androidx.compose.material.icons.outlined.Cloud
@@ -53,6 +54,12 @@ fun weekdayShort(date: LocalDate): String = date.dayOfWeek.getDisplayName(TextSt
 /** `October 2026` month header. */
 fun monthYear(date: LocalDate): String =
     date.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale())).capitalized()
+
+/** `27 October` / `October 27`: day and month in the locale's order, no year. */
+fun dayAndMonth(date: LocalDate): String {
+    val pattern = DateFormat.getBestDateTimePattern(locale(), "dMMMM")
+    return date.format(DateTimeFormatter.ofPattern(pattern, locale()))
+}
 
 /** `Monday 26 October 2026`, with Today / Yesterday where they apply. */
 fun longDate(date: LocalDate, today: LocalDate = LocalDate.now()): String {

@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -47,6 +48,8 @@ import nl.markbroeders.journal.ui.editor.EditorScreen
 import nl.markbroeders.journal.ui.editor.EditorTarget
 import nl.markbroeders.journal.ui.editor.EditorViewModel
 import nl.markbroeders.journal.ui.entry.EntryScreen
+import nl.markbroeders.journal.ui.onthisday.OnThisDayScreen
+import nl.markbroeders.journal.ui.onthisday.OnThisDayViewModel
 import nl.markbroeders.journal.ui.AppState
 import nl.markbroeders.journal.ui.AppViewModel
 import nl.markbroeders.journal.ui.setup.SetupScreen
@@ -88,6 +91,7 @@ private fun JournalRoot(container: AppContainer) {
     var editorTarget by rememberSaveable { mutableStateOf<String?>(null) }
     var editorSession by rememberSaveable { mutableIntStateOf(0) }
     var tab by rememberSaveable { mutableStateOf(Tab.Timeline) }
+    var showOnThisDay by rememberSaveable { mutableStateOf(false) }
     val screenStates = rememberSaveableStateHolder()
 
     when (val s = state) {
@@ -112,6 +116,7 @@ private fun JournalRoot(container: AppContainer) {
                 // A new vault or folder gets a fresh timeline.
                 val timeline = viewModel(key = "timeline-${s.settings}") { TimelineViewModel(container, s.settings) }
                 val calendar = viewModel(key = "calendar-${s.settings}") { CalendarViewModel(container) }
+                val onThisDay = viewModel(key = "onthisday-${s.settings}") { OnThisDayViewModel(container) }
                 val timelineState by timeline.state.collectAsStateWithLifecycle()
                 // Re-scan whenever the app comes back: Obsidian or sync may have changed files.
                 LifecycleResumeEffect(timeline) {
@@ -153,6 +158,11 @@ private fun JournalRoot(container: AppContainer) {
                             onDismissDeletion = timeline::dismissDeletion,
                         )
                     }
+                    showOnThisDay -> OnThisDayScreen(
+                        onThisDay,
+                        onOpenEntry = { openEntryId = entryId(it) },
+                        onBack = { showOnThisDay = false },
+                    )
                     tab == Tab.Calendar -> {
                         BackHandler { tab = Tab.Timeline }
                         screenStates.SaveableStateProvider("calendar") {
@@ -166,6 +176,9 @@ private fun JournalRoot(container: AppContainer) {
                     }
                     // Keeps the scroll position while another screen is open.
                     else -> screenStates.SaveableStateProvider("timeline") {
+                        val today = LocalDate.now()
+                        val earlier by remember(today) { onThisDay.matches(today) }
+                            .collectAsStateWithLifecycle(emptyList())
                         TimelineScreen(
                             timeline,
                             s.settings.journalFolder,
@@ -176,6 +189,11 @@ private fun JournalRoot(container: AppContainer) {
                                 editingSettings = true
                             },
                             bottomBar = bottomBar,
+                            onThisDay = earlier,
+                            onOpenOnThisDay = {
+                                onThisDay.show(today)
+                                showOnThisDay = true
+                            },
                         )
                     }
                 }

@@ -1,6 +1,13 @@
 package nl.markbroeders.journal.ui.timeline
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material3.Surface
+import nl.markbroeders.journal.data.TimelineDay
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,6 +65,9 @@ fun TimelineScreen(
     onNewEntry: () -> Unit,
     onOpenSettings: () -> Unit,
     bottomBar: @Composable () -> Unit,
+    /** Today's date in earlier years, for the banner at the top (empty: no banner). */
+    onThisDay: List<TimelineDay> = emptyList(),
+    onOpenOnThisDay: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -106,22 +116,38 @@ fun TimelineScreen(
                     action = "Try again" to { viewModel.refresh(userInitiated = true) },
                 )
                 state.days.isEmpty() && !state.hasMore -> Message("No entries yet.")
-                else -> TimelineList(state, onOpenEntry, viewModel::loadMore)
+                else -> TimelineList(state, onOpenEntry, viewModel::loadMore, hasHeader = onThisDay.isNotEmpty()) {
+                    OnThisDayBanner(onThisDay, onOpenOnThisDay)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun TimelineList(state: TimelineUiState, onOpenEntry: (TimelineEntry) -> Unit, onLoadMore: () -> Unit) {
+private fun TimelineList(
+    state: TimelineUiState,
+    onOpenEntry: (TimelineEntry) -> Unit,
+    onLoadMore: () -> Unit,
+    hasHeader: Boolean,
+    header: @Composable () -> Unit,
+) {
     val listState = rememberLazyListState()
     LoadMoreEffect(listState, onLoadMore)
+    // The list keeps its first visible item in place, so a header that appears later would land
+    // just above the screen; show it if the user is at the top.
+    LaunchedEffect(hasHeader) {
+        if (hasHeader && listState.firstVisibleItemIndex <= 1 && listState.firstVisibleItemScrollOffset == 0) {
+            listState.scrollToItem(0)
+        }
+    }
     LazyColumn(
         state = listState,
         // Room for the floating + button.
         contentPadding = PaddingValues(bottom = 96.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        if (hasHeader) item(key = "header") { header() }
         if (state.unreadable > 0) {
             item(key = "unreadable") {
                 Text(
@@ -169,6 +195,36 @@ private fun LoadMoreEffect(listState: LazyListState, onLoadMore: () -> Unit) {
             .distinctUntilChanged()
             .filter { (nearEnd, _) -> nearEnd }
             .collect { onLoadMore() }
+    }
+}
+
+/** "On This Day · 3 entries from 2024 and 2025", opening the On This Day screen. */
+@Composable
+private fun OnThisDayBanner(days: List<TimelineDay>, onClick: () -> Unit) {
+    val entries = days.sumOf { it.entries.size }
+    val years = days.map { it.date.year }.distinct().sorted()
+    val yearText = if (years.size == 1) "${years[0]}" else years.dropLast(1).joinToString(", ") + " and ${years.last()}"
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text("On This Day", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "$entries ${if (entries == 1) "entry" else "entries"} from $yearText",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+        }
     }
 }
 
