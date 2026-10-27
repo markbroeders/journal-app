@@ -8,6 +8,7 @@ import coil3.request.crossfade
 import coil3.video.VideoFrameDecoder
 import nl.markbroeders.journal.data.IndexDb
 import nl.markbroeders.journal.data.JournalRepository
+import nl.markbroeders.journal.data.PhotoImporter
 import nl.markbroeders.journal.data.SettingsStore
 import nl.markbroeders.journal.data.VaultAccess
 import nl.markbroeders.journal.sync.ScanWorker
@@ -38,4 +39,5 @@ class AppContainer(app: Application) {
     val journal = JournalRepository(vaultAccess)
     val index = IndexDb.create(app)
     val scanner = VaultScanner(journal, vaultAccess, index)
+    val photos = PhotoImporter(app, vaultAccess, index.dao())
 }

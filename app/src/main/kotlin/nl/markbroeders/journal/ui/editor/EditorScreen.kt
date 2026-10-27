@@ -1,6 +1,14 @@
 package nl.markbroeders.journal.ui.editor
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +26,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.SentimentSatisfied
 import androidx.compose.material.icons.outlined.Sell
@@ -57,6 +67,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,6 +78,7 @@ import nl.markbroeders.journal.ui.components.longDate
 import nl.markbroeders.journal.ui.components.moodEmoji
 import nl.markbroeders.journal.ui.components.weatherIcon
 import nl.markbroeders.journal.ui.theme.journalTopBarColors
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -84,6 +98,22 @@ fun EditorScreen(viewModel: EditorViewModel, onClosed: () -> Unit) {
     var pickDate by rememberSaveable { mutableStateOf(false) }
     var pickTime by rememberSaveable { mutableStateOf(false) }
     var editTags by rememberSaveable { mutableStateOf(false) }
+
+    val pickPhotos = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(MAX_PHOTOS),
+    ) { uris -> viewModel.addPhotos(uris) }
+    val context = LocalContext.current
+    // Where the camera app writes; saved so it survives our process being killed meanwhile.
+    var cameraFile by rememberSaveable { mutableStateOf<String?>(null) }
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val file = cameraFile?.let(::File)
+        cameraFile = null
+        if (ok && file != null) {
+            viewModel.addPhotos(listOf(Uri.fromFile(file))) { file.delete() }
+        } else {
+            file?.delete()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -126,7 +156,7 @@ fun EditorScreen(viewModel: EditorViewModel, onClosed: () -> Unit) {
                 .consumeWindowInsets(padding)
                 .imePadding(),
         ) {
-            if (state.saving) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (state.saving || state.addingPhotos) LinearProgressIndicator(Modifier.fillMaxWidth())
             when {
                 state.loading -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -138,7 +168,7 @@ fun EditorScreen(viewModel: EditorViewModel, onClosed: () -> Unit) {
                     )
                 }
                 else -> BodyField(
-                    text = state.body,
+                    state = state,
                     onChange = viewModel::onBodyChange,
                     autoFocus = state.isNew,
                     modifier = Modifier.weight(1f),
@@ -150,6 +180,19 @@ fun EditorScreen(viewModel: EditorViewModel, onClosed: () -> Unit) {
                 onMood = viewModel::onMoodChange,
                 onStar = { viewModel.onStarredChange(!state.starred) },
                 onTags = { editTags = true },
+                onGallery = {
+                    pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+                onCamera = {
+                    val file = newCameraFile(context)
+                    cameraFile = file.path
+                    try {
+                        takePhoto.launch(FileProvider.getUriForFile(context, "${context.packageName}.files", file))
+                    } catch (_: ActivityNotFoundException) {
+                        cameraFile = null
+                        Toast.makeText(context, "No camera app found", Toast.LENGTH_SHORT).show()
+                    }
+                },
             )
         }
     }
@@ -186,6 +229,14 @@ fun EditorScreen(viewModel: EditorViewModel, onClosed: () -> Unit) {
             dismissButton = { TextButton(onClick = viewModel::discard) { Text("Discard mine") } },
         )
     }
+    state.photoError?.let { error ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissPhotoError,
+            title = { Text("Couldn't add the photo") },
+            text = { Text(error) },
+            confirmButton = { TextButton(onClick = viewModel::dismissPhotoError) { Text("OK") } },
+        )
+    }
     state.error?.let { error ->
         AlertDialog(
             onDismissRequest = viewModel::dismissError,
@@ -197,13 +248,40 @@ fun EditorScreen(viewModel: EditorViewModel, onClosed: () -> Unit) {
     }
 }
 
+private const val MAX_PHOTOS = 10
+
+/** A fresh file in the cache for the camera app to write into (shared via FileProvider). */
+private fun newCameraFile(context: Context): File {
+    val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+    return File(dir, "photo-${System.currentTimeMillis()}.jpg")
+}
+
+/**
+ * The text with its cursor. The view model owns the text; the field keeps the selection and
+ * takes text and cursor from the view model whenever it replaces the body ([EditorUiState.bodyRevision]).
+ */
 @Composable
-private fun BodyField(text: String, onChange: (String) -> Unit, autoFocus: Boolean, modifier: Modifier) {
+private fun BodyField(
+    state: EditorUiState,
+    onChange: (String, Int) -> Unit,
+    autoFocus: Boolean,
+    modifier: Modifier,
+) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(autoFocus) { if (autoFocus) focus.requestFocus() }
+    var value by remember { mutableStateOf(TextFieldValue(state.body, TextRange(state.cursor))) }
+    LaunchedEffect(state.bodyRevision) {
+        if (value.text != state.body || value.selection.end != state.cursor) {
+            value = TextFieldValue(state.body, TextRange(state.cursor))
+        }
+    }
+    val text = value.text
     BasicTextField(
-        value = text,
-        onValueChange = onChange,
+        value = value,
+        onValueChange = {
+            value = it
+            onChange(it.text, it.selection.end)
+        },
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
@@ -227,7 +305,14 @@ private fun BodyField(text: String, onChange: (String) -> Unit, autoFocus: Boole
 }
 
 @Composable
-private fun Toolbar(state: EditorUiState, onMood: (Int?) -> Unit, onStar: () -> Unit, onTags: () -> Unit) {
+private fun Toolbar(
+    state: EditorUiState,
+    onMood: (Int?) -> Unit,
+    onStar: () -> Unit,
+    onTags: () -> Unit,
+    onGallery: () -> Unit,
+    onCamera: () -> Unit,
+) {
     var moodMenu by remember { mutableStateOf(false) }
     Row(
         Modifier
@@ -256,6 +341,12 @@ private fun Toolbar(state: EditorUiState, onMood: (Int?) -> Unit, onStar: () -> 
                     DropdownMenuItem(text = { Text("No mood") }, onClick = { onMood(null); moodMenu = false })
                 }
             }
+        }
+        IconButton(onClick = onGallery, enabled = !state.addingPhotos) {
+            Icon(Icons.Outlined.AddPhotoAlternate, contentDescription = "Add photos")
+        }
+        IconButton(onClick = onCamera, enabled = !state.addingPhotos) {
+            Icon(Icons.Outlined.PhotoCamera, contentDescription = "Take a photo")
         }
         IconButton(onClick = onStar) {
             if (state.starred) {

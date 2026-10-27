@@ -1,7 +1,18 @@
 package nl.markbroeders.journal.ui.entry
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import nl.markbroeders.journal.ui.media.MediaEntry
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -67,6 +78,9 @@ fun EntryScreen(
     onEdit: () -> Unit,
     onDelete: (deleteBlankFile: Boolean?) -> Unit,
     onDismissDeletion: () -> Unit,
+    /** The entry's photos and videos that resolve to a file, in order. */
+    photos: List<MediaEntry> = emptyList(),
+    onOpenPhoto: (MediaEntry) -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
     var menu by remember { mutableStateOf(false) }
@@ -150,7 +164,16 @@ fun EntryScreen(
                 SelectionContainer {
                     Text(entry.text, style = MaterialTheme.typography.bodyLarge)
                 }
-            } else {
+            }
+            if (photos.isNotEmpty()) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(top = if (entry.text.isNotEmpty()) 20.dp else 0.dp),
+                ) {
+                    photos.forEach { photo -> Photo(photo) { onOpenPhoto(photo) } }
+                }
+            }
+            if (entry.text.isEmpty() && photos.isEmpty()) {
                 Text(
                     "No text.",
                     style = MaterialTheme.typography.bodyLarge,
@@ -197,6 +220,40 @@ fun EntryScreen(
             confirmButton = { TextButton(onClick = onDismissDeletion) { Text("OK") } },
         )
         Deletion.InProgress, null -> {}
+    }
+}
+
+/** A photo at full width (or a video's first frame with a play icon); tapping opens the viewer. */
+@Composable
+private fun Photo(photo: MediaEntry, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        AsyncImage(
+            model = photo.uri,
+            contentDescription = photo.fileName,
+            contentScale = ContentScale.FillWidth,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 120.dp),
+        )
+        if (photo.isVideo) {
+            Icon(
+                Icons.Filled.PlayArrow,
+                contentDescription = "Video",
+                tint = Color.White,
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .padding(8.dp),
+            )
+        }
     }
 }
 

@@ -92,6 +92,18 @@ class VaultAccess(context: Context) {
         stream.bufferedWriter(Charsets.UTF_8).use { it.write(text) }
     }
 
+    suspend fun writeBytes(node: DocNode, bytes: ByteArray) = withContext(Dispatchers.IO) {
+        val stream = resolver.openOutputStream(node.uri, "wt") ?: throw IOException("Can't write ${node.name}")
+        stream.use { it.write(bytes) }
+    }
+
+    /** Obsidian's attachment folder setting, from `.obsidian/app.json` (default if unreadable). */
+    suspend fun attachmentFolder(treeUri: Uri): AttachmentFolder {
+        val json = resolve(treeUri, listOf(".obsidian", "app.json"))
+            ?.let { runCatching { readText(it) }.getOrNull() }
+        return ObsidianConfig.attachmentFolder(json)
+    }
+
     /** Creates an empty file. Throws if the provider picks a different name (e.g. it already exists). */
     suspend fun createFile(parent: DocNode, name: String): DocNode = create(parent, OCTET_STREAM, name)
 

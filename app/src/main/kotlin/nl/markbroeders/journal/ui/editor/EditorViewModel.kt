@@ -1,5 +1,7 @@
 package nl.markbroeders.journal.ui.editor
 
+import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,10 +14,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import nl.markbroeders.journal.AppContainer
 import nl.markbroeders.journal.data.DayEdit
+import nl.markbroeders.journal.data.DocNode
 import nl.markbroeders.journal.data.EntryChange
 import nl.markbroeders.journal.data.EntryKey
 import nl.markbroeders.journal.data.InlineField
 import nl.markbroeders.journal.data.NoteEdit
+import nl.markbroeders.journal.data.Photos
 import nl.markbroeders.journal.data.SaveResult
 import nl.markbroeders.journal.data.VaultSettings
 import java.time.LocalDate
@@ -35,6 +39,12 @@ data class EditorUiState(
     /** Null for the untimed entry. */
     val time: LocalTime?,
     val body: String = "",
+    /** Where the cursor is (photos go here). */
+    val cursor: Int = 0,
+    /** Bumped when [body] is replaced by the editor itself (loading, photos), so the field resyncs. */
+    val bodyRevision: Int = 0,
+    val addingPhotos: Boolean = false,
+    val photoError: String? = null,
     val mood: Int? = null,
     val starred: Boolean = false,
     val tags: List<String> = emptyList(),
@@ -63,6 +73,10 @@ class EditorViewModel(
 ) : ViewModel() {
 
     private val repository = container.journal
+    private val photos = container.photos
+
+    /** Photos added in this session; any that end up unused are removed when the editor closes. */
+    private val imported = mutableListOf<DocNode>()
 
     private val _state = MutableStateFlow(
         when (target) {
@@ -84,10 +98,39 @@ class EditorViewModel(
         load(target.date)
     }
 
-    fun onBodyChange(text: String) {
+    fun onBodyChange(text: String, cursor: Int) {
         saved[KEY_BODY] = text
-        _state.update { it.copy(body = text) }
+        _state.update { it.copy(body = text, cursor = cursor) }
     }
+
+    /** Copies [uris] into the attachment folder and embeds them at the cursor. */
+    fun addPhotos(uris: List<Uri>, onDone: () -> Unit = {}) {
+        val s = _state.value
+        if (uris.isEmpty() || s.loading || s.missing || s.addingPhotos) return onDone()
+        _state.update { it.copy(addingPhotos = true) }
+        viewModelScope.launch {
+            // The untimed day note has no time of its own; name its photos after the current time.
+            val time = s.time ?: LocalTime.now()
+            val created = try {
+                photos.import(settings, s.date, time, uris)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Adding photos failed", e)
+                _state.update { it.copy(photoError = e.message ?: "The photo couldn't be added.") }
+                emptyList()
+            }
+            imported += created
+            _state.update {
+                val (body, cursor) = Photos.insertEmbeds(it.body, it.cursor, created.map { f -> f.name })
+                saved[KEY_BODY] = body
+                it.copy(addingPhotos = false, body = body, cursor = cursor, bodyRevision = it.bodyRevision + 1)
+            }
+            onDone()
+        }
+    }
+
+    fun dismissPhotoError() = _state.update { it.copy(photoError = null) }
 
     fun onMoodChange(mood: Int?) = _state.update { it.copy(mood = mood) }
 
@@ -116,7 +159,7 @@ class EditorViewModel(
         if (s.loading || s.saving) return
         val newWithoutText = s.isNew && s.body.isBlank()
         if (!isDirty || newWithoutText || s.missing) {
-            _state.update { it.copy(closed = true) }
+            closeRemovingUnusedPhotos(if (newWithoutText) "" else s.body)
             return
         }
         // Fields are only rewritten when the mood was actually changed.
@@ -133,7 +176,10 @@ class EditorViewModel(
         _state.update { it.copy(saving = true, conflict = false, error = null) }
         viewModelScope.launch {
             when (val result = repository.save(settings, s.date, NoteEdit(change, day), force = force)) {
-                is SaveResult.Saved -> _state.update { it.copy(saving = false, closed = true) }
+                is SaveResult.Saved -> {
+                    removeUnusedPhotos(s.body)
+                    _state.update { it.copy(saving = false, closed = true) }
+                }
                 SaveResult.Conflict -> _state.update { it.copy(saving = false, conflict = true) }
                 // Only happens when deleting; an edit never blanks a note.
                 SaveResult.NoteWouldBeBlank -> _state.update { it.copy(saving = false, closed = true) }
@@ -144,8 +190,26 @@ class EditorViewModel(
         }
     }
 
-    /** Throws away the user's changes. */
-    fun discard() = _state.update { it.copy(closed = true, conflict = false) }
+    /** Throws away the user's changes, including photos added in this session. */
+    fun discard() {
+        _state.update { it.copy(conflict = false) }
+        closeRemovingUnusedPhotos("")
+    }
+
+    private fun closeRemovingUnusedPhotos(body: String) {
+        viewModelScope.launch {
+            removeUnusedPhotos(body)
+            _state.update { it.copy(closed = true) }
+        }
+    }
+
+    /** Deletes photos added in this session that [body] no longer embeds. */
+    private suspend fun removeUnusedPhotos(body: String) {
+        val unused = imported.filter { Photos.embed(it.name) !in body }
+        if (unused.isEmpty()) return
+        photos.delete(unused)
+        imported -= unused.toSet()
+    }
 
     fun dismissError() = _state.update { it.copy(error = null) }
 
@@ -166,11 +230,14 @@ class EditorViewModel(
                 // An existing entry starts from the file; a new one keeps what was typed (date change).
                 val body = if (entry != null) entry.body else _state.value.body
                 initial = Snapshot(entry?.body.orEmpty(), entry?.mood, note.starred, tags)
+                val restored = saved.get<String>(KEY_BODY) ?: body
                 _state.update {
                     it.copy(
                         loading = false,
                         // A draft restored after process death wins over the file.
-                        body = saved.get<String>(KEY_BODY) ?: body,
+                        body = restored,
+                        cursor = restored.length,
+                        bodyRevision = it.bodyRevision + 1,
                         mood = if (it.isNew) it.mood else entry?.mood,
                         starred = note.starred,
                         tags = tags,
@@ -197,6 +264,7 @@ class EditorViewModel(
     }
 
     private companion object {
+        const val TAG = "Editor"
         const val KEY_BODY = "body"
     }
 }

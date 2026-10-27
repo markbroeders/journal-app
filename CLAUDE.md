@@ -183,7 +183,13 @@ attachment folder from `.obsidian/app.json` (`ObsidianConfig`, `AttachmentScanne
 vault root, `Attachments` and the year folders into `attachments`, and the grid joins the two
 by name (case-insensitive), like Obsidian resolves `![[name.jpg]]`. Thumbnails via Coil
 (video frames via coil-video); a full-screen pager viewer links to the entry, videos open in
-another app. The entry screen doesn't show photos yet.
+another app. The entry screen shows an entry's photos full width below its text.
+Adding photos: the editor's gallery (system photo picker) and camera (TakePicture via a
+FileProvider cache file) buttons; `PhotoImporter` writes upright JPEGs (long edge ≤ 2560) into
+the attachment folder as `YYYY-MM-DD-HHmm-N.jpg` (`Photos.nextName`, never overwriting; the
+untimed entry uses the current time) and `Photos.insertEmbeds` puts the embeds at the cursor as
+their own paragraph. Photos added in an editor session but no longer embedded when it closes
+(or all of them on discard) are deleted again.
 
 Conflict handling: every save re-reads the file and applies the change to what is on disk
 now. Adds always merge; an edit/delete only applies if the entry's raw text is unchanged

@@ -150,6 +150,15 @@ private fun JournalRoot(container: AppContainer) {
                             timeline.refresh()
                         })
                     }
+                    viewerIndex != null && !mediaItems.isNullOrEmpty() -> MediaViewer(
+                        mediaItems.orEmpty(),
+                        initial = viewerIndex ?: 0,
+                        onOpenEntry = {
+                            openEntryId = "${it.date}|${it.key.time}|${it.key.ordinal}"
+                            viewerIndex = null
+                        },
+                        onBack = { viewerIndex = null },
+                    )
                     open != null -> {
                         val (day, entry) = open
                         EntryScreen(
@@ -164,14 +173,12 @@ private fun JournalRoot(container: AppContainer) {
                                 timeline.delete(entry, deleteFile, onDeleted = { openEntryId = null })
                             },
                             onDismissDeletion = timeline::dismissDeletion,
+                            photos = mediaItems.orEmpty().filter { it.date == entry.date && it.key == entry.key },
+                            onOpenPhoto = { photo ->
+                                viewerIndex = mediaItems?.indexOf(photo)?.takeIf { it >= 0 }
+                            },
                         )
                     }
-                    viewerIndex != null && !mediaItems.isNullOrEmpty() -> MediaViewer(
-                        mediaItems.orEmpty(),
-                        initial = viewerIndex ?: 0,
-                        onOpenEntry = { openEntryId = "${it.date}|${it.key.time}|${it.key.ordinal}" },
-                        onBack = { viewerIndex = null },
-                    )
                     showOnThisDay -> OnThisDayScreen(
                         onThisDay,
                         onOpenEntry = { openEntryId = entryId(it) },

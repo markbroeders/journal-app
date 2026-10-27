@@ -7,7 +7,6 @@ import nl.markbroeders.journal.data.AttachmentRow
 import nl.markbroeders.journal.data.DocNode
 import nl.markbroeders.journal.data.Embeds
 import nl.markbroeders.journal.data.IndexDao
-import nl.markbroeders.journal.data.ObsidianConfig
 import nl.markbroeders.journal.data.VaultAccess
 import nl.markbroeders.journal.data.VaultPaths
 import nl.markbroeders.journal.data.VaultSettings
@@ -37,9 +36,7 @@ class AttachmentScanner(private val access: VaultAccess, private val dao: IndexD
 
     private suspend fun list(settings: VaultSettings, yearFolders: List<DocNode>): List<AttachmentRow> {
         val uri = settings.vaultUri
-        val config = access.resolve(uri, listOf(".obsidian", "app.json"))
-            ?.let { runCatching { access.readText(it) }.getOrNull() }
-        val folder = ObsidianConfig.attachmentFolder(config)
+        val folder = access.attachmentFolder(uri)
         val root = access.root(uri) ?: return emptyList()
 
         // Earlier sources win when two folders hold a file with the same name.
