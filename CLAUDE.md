@@ -158,12 +158,19 @@ share target). Location and weather last.
 
 ## Next step
 
-MVP step 5: IndexDb + VaultScanner. Steps 1–4 are done: the parser/writer, `VaultPaths`,
-the timeline model (`Timeline`, `PlainText`) and the save/merge logic (`NoteEdits`) live in
-the pure-Kotlin `:core` module; `VaultAccess` (SAF via `DocumentsContract` queries),
-`SettingsStore` (DataStore) and `JournalRepository` (load, save, atomic replace, temp-file
-recovery) are in `:app`. The timeline reads files directly, a page at a time, caching by
-document and mtime.
+MVP is done (steps 1–5); next up: calendar, then On This Day, media grid, search.
+The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
+logic (`NoteEdits`) and the rescan diff (`IndexPlan`) live in the pure-Kotlin `:core` module;
+`VaultAccess` (SAF via `DocumentsContract` queries), `SettingsStore` (DataStore),
+`JournalRepository` (load, save, atomic replace, temp-file recovery) and `IndexDb` (Room) are
+in `:app`, with `VaultScanner` and the periodic `ScanWorker` in `sync/`.
+
+Index: `notes` rows (keyed by document id; mtime, size, day metadata, `readFailed`) and
+`entries` rows (everything a `TimelineEntry` holds, incl. plain text for search). The scanner
+lists the folder, re-reads only files whose mtime or size changed (or that failed last time),
+newest first in batches, and drops rows for removed files; the index is reset when the vault or
+journal folder changes. The timeline observes the index and triggers a scan on resume, on
+pull-to-refresh and after saves.
 
 Conflict handling: every save re-reads the file and applies the change to what is on disk
 now. Adds always merge; an edit/delete only applies if the entry's raw text is unchanged

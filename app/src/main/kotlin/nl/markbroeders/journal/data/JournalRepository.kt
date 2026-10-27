@@ -41,7 +41,7 @@ class JournalRepository(private val access: VaultAccess) {
 
     private val lock = Mutex()
 
-    /** Lists `JOURNAL/YYYY/YYYY-MM-DD.md` files. Other files and folders are ignored. */
+    /** Lists `JOURNAL/YYYY/YYYY-MM-DD.md` files. Other files and folders (and notes in the wrong year folder) are ignored. */
     suspend fun listNoteFiles(settings: VaultSettings): NoteListing = lock.withLock {
         val uri = settings.vaultUri
         val journal = access.resolve(uri, VaultPaths.segments(settings.journalFolder))
@@ -49,9 +49,13 @@ class JournalRepository(private val access: VaultAccess) {
             ?: return NoteListing.FolderMissing
         val files = access.listChildren(uri, journal)
             .filter { it.isDirectory && VaultPaths.isYearFolder(it.name) }
-            .flatMap { year -> recoverTempFiles(year, access.listChildren(uri, year)) }
-            .mapNotNull { node ->
-                if (node.isDirectory) null else VaultPaths.dateOfDailyNote(node.name)?.let { NoteFile(it, node) }
+            .flatMap { year ->
+                recoverTempFiles(year, access.listChildren(uri, year)).mapNotNull { node ->
+                    VaultPaths.dateOfDailyNote(node.name)
+                        // A note in the wrong year folder isn't where saves go; skip it.
+                        ?.takeIf { !node.isDirectory && "%04d".format(it.year) == year.name }
+                        ?.let { NoteFile(it, node) }
+                }
             }
             .sortedByDescending { it.date }
         NoteListing.Files(files)
