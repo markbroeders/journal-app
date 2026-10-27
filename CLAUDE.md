@@ -158,7 +158,7 @@ share target). Location and weather last.
 
 ## Next step
 
-MVP is done (steps 1–5), plus calendar and On This Day; next up: media grid, then search.
+MVP is done (steps 1–5), plus calendar, On This Day and the media grid; next up: search.
 The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
 logic (`NoteEdits`) and the rescan diff (`IndexPlan`) live in the pure-Kotlin `:core` module;
 `VaultAccess` (SAF via `DocumentsContract` queries), `SettingsStore` (DataStore),
@@ -178,6 +178,12 @@ the index (`TimelineViewModel.day`), so entries open from anywhere, not only loa
 On This Day: a banner on top of the timeline when earlier years have entries on today's
 date, opening a screen grouped by year with day arrows (`OnThisDay` in `:core`; in non-leap
 years 28 Feb includes 29 Feb).
+Media: entries' media embeds are stored as `media` rows (by file name); each scan lists the
+attachment folder from `.obsidian/app.json` (`ObsidianConfig`, `AttachmentScanner`) plus the
+vault root, `Attachments` and the year folders into `attachments`, and the grid joins the two
+by name (case-insensitive), like Obsidian resolves `![[name.jpg]]`. Thumbnails via Coil
+(video frames via coil-video); a full-screen pager viewer links to the entry, videos open in
+another app. The entry screen doesn't show photos yet.
 
 Conflict handling: every save re-reads the file and applies the change to what is on disk
 now. Adds always merge; an edit/delete only applies if the entry's raw text is unchanged

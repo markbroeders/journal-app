@@ -25,10 +25,13 @@ data class TimelineEntry(
     val weather: String?,
     val mood: Int?,
     val tags: List<String>,
-    val mediaCount: Int,
+    /** Targets of the media embeds (`![[photo.jpg]]`, `![](a/b.png)`), in order. */
+    val media: List<String>,
     /** The section's exact source text, to detect changes before editing or deleting it. */
     val raw: String,
-)
+) {
+    val mediaCount: Int get() = media.size
+}
 
 object Timeline {
 
@@ -68,7 +71,7 @@ object Timeline {
             weather = entry.weather?.takeIf { it.isNotBlank() },
             mood = entry.mood,
             tags = entry.tags,
-            mediaCount = entry.embeds.count(Markdown::isMedia),
+            media = entry.embeds.filter(Markdown::isMedia),
             raw = entry.raw,
         )
     }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +49,9 @@ import nl.markbroeders.journal.ui.editor.EditorScreen
 import nl.markbroeders.journal.ui.editor.EditorTarget
 import nl.markbroeders.journal.ui.editor.EditorViewModel
 import nl.markbroeders.journal.ui.entry.EntryScreen
+import nl.markbroeders.journal.ui.media.MediaScreen
+import nl.markbroeders.journal.ui.media.MediaViewModel
+import nl.markbroeders.journal.ui.media.MediaViewer
 import nl.markbroeders.journal.ui.onthisday.OnThisDayScreen
 import nl.markbroeders.journal.ui.onthisday.OnThisDayViewModel
 import nl.markbroeders.journal.ui.AppState
@@ -92,6 +96,8 @@ private fun JournalRoot(container: AppContainer) {
     var editorSession by rememberSaveable { mutableIntStateOf(0) }
     var tab by rememberSaveable { mutableStateOf(Tab.Timeline) }
     var showOnThisDay by rememberSaveable { mutableStateOf(false) }
+    // Index into the media list of the photo shown full screen.
+    var viewerIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     val screenStates = rememberSaveableStateHolder()
 
     when (val s = state) {
@@ -117,6 +123,8 @@ private fun JournalRoot(container: AppContainer) {
                 val timeline = viewModel(key = "timeline-${s.settings}") { TimelineViewModel(container, s.settings) }
                 val calendar = viewModel(key = "calendar-${s.settings}") { CalendarViewModel(container) }
                 val onThisDay = viewModel(key = "onthisday-${s.settings}") { OnThisDayViewModel(container) }
+                val media = viewModel(key = "media-${s.settings}") { MediaViewModel(container) }
+                val mediaItems by media.media.collectAsStateWithLifecycle()
                 val timelineState by timeline.state.collectAsStateWithLifecycle()
                 // Re-scan whenever the app comes back: Obsidian or sync may have changed files.
                 LifecycleResumeEffect(timeline) {
@@ -158,11 +166,27 @@ private fun JournalRoot(container: AppContainer) {
                             onDismissDeletion = timeline::dismissDeletion,
                         )
                     }
+                    viewerIndex != null && !mediaItems.isNullOrEmpty() -> MediaViewer(
+                        mediaItems.orEmpty(),
+                        initial = viewerIndex ?: 0,
+                        onOpenEntry = { openEntryId = "${it.date}|${it.key.time}|${it.key.ordinal}" },
+                        onBack = { viewerIndex = null },
+                    )
                     showOnThisDay -> OnThisDayScreen(
                         onThisDay,
                         onOpenEntry = { openEntryId = entryId(it) },
                         onBack = { showOnThisDay = false },
                     )
+                    tab == Tab.Media -> {
+                        BackHandler { tab = Tab.Timeline }
+                        screenStates.SaveableStateProvider("media") {
+                            MediaScreen(
+                                media,
+                                onOpen = { item -> viewerIndex = mediaItems?.indexOf(item)?.takeIf { it >= 0 } },
+                                bottomBar = bottomBar,
+                            )
+                        }
+                    }
                     tab == Tab.Calendar -> {
                         BackHandler { tab = Tab.Timeline }
                         screenStates.SaveableStateProvider("calendar") {
@@ -201,7 +225,7 @@ private fun JournalRoot(container: AppContainer) {
     }
 }
 
-private enum class Tab { Timeline, Calendar }
+private enum class Tab { Timeline, Calendar, Media }
 
 @Composable
 private fun JournalNavigationBar(selected: Tab, onSelect: (Tab) -> Unit) {
@@ -223,6 +247,13 @@ private fun JournalNavigationBar(selected: Tab, onSelect: (Tab) -> Unit) {
             onClick = { onSelect(Tab.Calendar) },
             icon = { Icon(Icons.Outlined.CalendarMonth, contentDescription = null) },
             label = { Text("Calendar") },
+            colors = colors,
+        )
+        NavigationBarItem(
+            selected = selected == Tab.Media,
+            onClick = { onSelect(Tab.Media) },
+            icon = { Icon(Icons.Outlined.PhotoLibrary, contentDescription = null) },
+            label = { Text("Media") },
             colors = colors,
         )
     }

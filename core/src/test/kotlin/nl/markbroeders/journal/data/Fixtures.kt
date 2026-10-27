@@ -15,5 +15,8 @@ object Fixtures {
 
     fun text(path: String): String = File(journalDir, path).readText()
 
+    /** A file elsewhere in the fixture vault, e.g. `.obsidian/app.json`. */
+    fun vaultFile(path: String): String = File(journalDir.parentFile, path).readText()
+
     fun note(path: String): DailyNote = DailyNoteParser.parse(text(path), path)
 }

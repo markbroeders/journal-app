@@ -13,8 +13,8 @@ data class NoteFile(val date: LocalDate, val node: DocNode)
 sealed interface NoteListing {
     data object FolderMissing : NoteListing
 
-    /** Newest first. */
-    data class Files(val files: List<NoteFile>) : NoteListing
+    /** [files] newest first; [yearFolders] are the `YYYY` folders they were found in. */
+    data class Files(val files: List<NoteFile>, val yearFolders: List<DocNode>) : NoteListing
 }
 
 sealed interface SaveResult {
@@ -47,8 +47,9 @@ class JournalRepository(private val access: VaultAccess) {
         val journal = access.resolve(uri, VaultPaths.segments(settings.journalFolder))
             ?.takeIf { it.isDirectory }
             ?: return NoteListing.FolderMissing
-        val files = access.listChildren(uri, journal)
+        val years = access.listChildren(uri, journal)
             .filter { it.isDirectory && VaultPaths.isYearFolder(it.name) }
+        val files = years
             .flatMap { year ->
                 recoverTempFiles(year, access.listChildren(uri, year)).mapNotNull { node ->
                     VaultPaths.dateOfDailyNote(node.name)
@@ -58,7 +59,7 @@ class JournalRepository(private val access: VaultAccess) {
                 }
             }
             .sortedByDescending { it.date }
-        NoteListing.Files(files)
+        NoteListing.Files(files, years)
     }
 
     suspend fun readNote(file: NoteFile): DailyNote =

@@ -19,6 +19,7 @@ import nl.markbroeders.journal.data.NoteFile
 import nl.markbroeders.journal.data.NoteListing
 import nl.markbroeders.journal.data.NoteRow
 import nl.markbroeders.journal.data.Timeline
+import nl.markbroeders.journal.data.VaultAccess
 import nl.markbroeders.journal.data.VaultSettings
 import nl.markbroeders.journal.data.toRows
 
@@ -33,11 +34,13 @@ sealed interface ScanResult {
  * Keeps [IndexDb] in step with the journal folder. Lists every daily note (one query per
  * folder) and only reads files whose last-modified time or size differs from the index.
  * Rows are written in batches, newest first, so a first scan fills the timeline from the top.
+ * Then the attachment folders are listed (see [AttachmentScanner]) for the media grid.
  * Scans are serialised; the app and the background worker share one scanner.
  */
-class VaultScanner(private val repository: JournalRepository, db: IndexDb) {
+class VaultScanner(private val repository: JournalRepository, access: VaultAccess, db: IndexDb) {
 
     private val dao: IndexDao = db.dao()
+    private val attachments = AttachmentScanner(access, dao)
     private val lock = Mutex()
     private val readDispatcher = Dispatchers.IO.limitedParallelism(4)
 
@@ -47,13 +50,14 @@ class VaultScanner(private val repository: JournalRepository, db: IndexDb) {
     /** Brings the index up to date. Throws if the journal folder can't be listed. */
     suspend fun scan(settings: VaultSettings): ScanResult = lock.withLock {
         ensureSource(settings)
-        val files = when (val listing = repository.listNoteFiles(settings)) {
+        val listing = when (val l = repository.listNoteFiles(settings)) {
             NoteListing.FolderMissing -> {
                 dao.reset(source(settings))
                 return@withLock ScanResult.FolderMissing
             }
-            is NoteListing.Files -> listing.files
+            is NoteListing.Files -> l
         }
+        val files = listing.files
         val byId = files.associateBy { it.node.documentId }
         val indexed = dao.stamps().associate { it.documentId to IndexStamp(it.lastModified, it.size, it.readFailed) }
         val plan = IndexPlan.compute(indexed, files.map { ListedNote(it.node.documentId, it.date, it.node.lastModified, it.node.size) })
@@ -70,6 +74,7 @@ class VaultScanner(private val repository: JournalRepository, db: IndexDb) {
             dao.replace(rows.map { it.first }, rows.flatMap { it.second })
             if (unread.isNotEmpty()) dao.markFailed(unread.map { it.first.documentId })
         }
+        attachments.scan(settings, listing.yearFolders)
         if (plan.toRead.isNotEmpty() || plan.toRemove.isNotEmpty()) {
             Log.i(TAG, "Indexed ${plan.toRead.size} notes ($failed failed), removed ${plan.toRemove.size}")
         }

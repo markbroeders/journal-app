@@ -64,6 +64,7 @@ class TimelineTest {
     fun `media count and tags`() {
         val d = day("2025/2025-06-21.md")!!
         assertEquals(listOf(2, 2), d.entries.map { it.mediaCount })
+        assertEquals(listOf("2025-06-21-1932-1.jpg", "2025-06-21-1932-2.jpg"), d.entries[0].media)
         assertEquals(listOf("tuin"), d.entries[1].tags)
         assertEquals("BBQ met familie in de tuin.\n\nNog een losse foto met gewone markdown-syntax:", d.entries[0].text)
         assertEquals("BBQ met familie in de tuin.", d.entries[0].title)

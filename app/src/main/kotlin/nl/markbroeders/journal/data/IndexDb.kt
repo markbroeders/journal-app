@@ -1,6 +1,7 @@
 package nl.markbroeders.journal.data
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Embedded
@@ -64,8 +65,49 @@ data class EntryRow(
     val weather: String?,
     val mood: Int?,
     val tags: List<String>,
-    val mediaCount: Int,
+    /** Media embed targets, in order (see [MediaRow] for lookups). */
+    val media: List<String>,
     val raw: String,
+)
+
+/**
+ * One media embed of an entry, by the file name it refers to; joined with [AttachmentRow] to
+ * find the file. Obsidian resolves `![[name.jpg]]` by file name, so the folder doesn't matter.
+ */
+@Entity(
+    tableName = "media",
+    primaryKeys = ["documentId", "position", "mediaIndex"],
+    foreignKeys = [
+        ForeignKey(NoteRow::class, ["documentId"], ["documentId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index("fileName")],
+)
+data class MediaRow(
+    val documentId: String,
+    /** The entry's [EntryRow.position]. */
+    val position: Int,
+    val mediaIndex: Int,
+    val date: LocalDate,
+    val time: LocalTime?,
+    val ordinal: Int,
+    @ColumnInfo(collate = ColumnInfo.NOCASE) val fileName: String,
+)
+
+/** A media file found in the attachment folders. The first one found wins for a name. */
+@Entity(tableName = "attachments")
+data class AttachmentRow(
+    @PrimaryKey @ColumnInfo(collate = ColumnInfo.NOCASE) val name: String,
+    val uri: String,
+    val lastModified: Long,
+)
+
+/** A media embed with the file it resolves to, for the media grid. */
+data class MediaItem(
+    val date: LocalDate,
+    val time: LocalTime?,
+    val ordinal: Int,
+    val fileName: String,
+    val uri: String,
 )
 
 /** Which vault and journal folder the index was built from. */
@@ -112,6 +154,29 @@ interface IndexDao {
     )
     fun observeOnThisDay(monthDays: List<String>, before: LocalDate): Flow<List<NoteWithEntries>>
 
+    /** Every media embed that resolves to a file, newest entry first, in order within an entry. */
+    @Query(
+        "SELECT m.date, m.time, m.ordinal, m.fileName, a.uri FROM media m " +
+            "JOIN attachments a ON a.name = m.fileName " +
+            "ORDER BY m.date DESC, m.documentId, m.position, m.mediaIndex",
+    )
+    fun observeMedia(): Flow<List<MediaItem>>
+
+    @Query("SELECT * FROM attachments")
+    suspend fun attachments(): List<AttachmentRow>
+
+    @Query("DELETE FROM attachments")
+    suspend fun clearAttachments()
+
+    @Insert
+    suspend fun insertAttachments(rows: List<AttachmentRow>)
+
+    @Transaction
+    suspend fun replaceAttachments(rows: List<AttachmentRow>) {
+        clearAttachments()
+        insertAttachments(rows)
+    }
+
     @Query("SELECT COUNT(*) FROM notes WHERE readFailed")
     fun observeUnreadable(): Flow<Int>
 
@@ -121,8 +186,14 @@ interface IndexDao {
     @Insert
     suspend fun insertEntries(entries: List<EntryRow>)
 
+    @Insert
+    suspend fun insertMedia(media: List<MediaRow>)
+
     @Query("DELETE FROM entries WHERE documentId IN (:ids)")
     suspend fun deleteEntries(ids: List<String>)
+
+    @Query("DELETE FROM media WHERE documentId IN (:ids)")
+    suspend fun deleteMedia(ids: List<String>)
 
     @Query("DELETE FROM notes WHERE documentId IN (:ids)")
     suspend fun deleteNotes(ids: List<String>)
@@ -133,17 +204,31 @@ interface IndexDao {
     @Query("DELETE FROM notes")
     suspend fun clearNotes()
 
+    @Query("DELETE FROM entries")
+    suspend fun clearEntries()
+
+    @Query("DELETE FROM media")
+    suspend fun clearMedia()
+
     /** Replaces the rows of the given notes (and their entries) in one transaction. */
     @Transaction
     suspend fun replace(notes: List<NoteRow>, entries: List<EntryRow>) {
-        notes.map { it.documentId }.chunked(MAX_ARGS).forEach { deleteEntries(it) }
+        notes.map { it.documentId }.chunked(MAX_ARGS).forEach {
+            deleteEntries(it)
+            deleteMedia(it)
+        }
         upsertNotes(notes)
         insertEntries(entries)
+        insertMedia(entries.flatMap { it.mediaRows() })
     }
 
     @Transaction
     suspend fun remove(ids: Collection<String>) {
-        ids.chunked(MAX_ARGS).forEach { deleteNotes(it) }
+        ids.chunked(MAX_ARGS).forEach {
+            deleteEntries(it)
+            deleteMedia(it)
+            deleteNotes(it)
+        }
     }
 
     @Query("SELECT value FROM meta WHERE `key` = :key")
@@ -155,7 +240,10 @@ interface IndexDao {
     /** Empties the index and records which vault it now belongs to. */
     @Transaction
     suspend fun reset(source: String) {
+        clearMedia()
+        clearEntries()
         clearNotes()
+        clearAttachments()
         setMeta(MetaRow(SOURCE_KEY, source))
     }
 
@@ -188,7 +276,11 @@ class IndexConverters {
  * the source of truth: the index can be dropped and rebuilt by [VaultScanner] at any time, so a
  * schema change just recreates it.
  */
-@Database(entities = [NoteRow::class, EntryRow::class, MetaRow::class], version = 1, exportSchema = false)
+@Database(
+    entities = [NoteRow::class, EntryRow::class, MediaRow::class, AttachmentRow::class, MetaRow::class],
+    version = 2,
+    exportSchema = false,
+)
 @TypeConverters(IndexConverters::class)
 abstract class IndexDb : RoomDatabase() {
     abstract fun dao(): IndexDao
@@ -206,10 +298,14 @@ fun TimelineDay.toRows(documentId: String, lastModified: Long, size: Long): Pair
     val rows = entries.mapIndexed { i, e ->
         EntryRow(
             documentId, i, e.date, e.key.time, e.key.ordinal, e.title, e.preview, e.text,
-            e.location, e.weather, e.mood, e.tags, e.mediaCount, e.raw,
+            e.location, e.weather, e.mood, e.tags, e.media, e.raw,
         )
     }
     return note to rows
+}
+
+private fun EntryRow.mediaRows(): List<MediaRow> = media.mapIndexedNotNull { i, target ->
+    Embeds.fileName(target)?.let { MediaRow(documentId, position, i, date, time, ordinal, it) }
 }
 
 fun NoteWithEntries.toTimelineDay(): TimelineDay = TimelineDay(
@@ -228,7 +324,7 @@ fun NoteWithEntries.toTimelineDay(): TimelineDay = TimelineDay(
             weather = e.weather,
             mood = e.mood,
             tags = e.tags,
-            mediaCount = e.mediaCount,
+            media = e.media,
             raw = e.raw,
         )
     },
