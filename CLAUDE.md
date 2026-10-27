@@ -158,7 +158,7 @@ share target). Location and weather last.
 
 ## Next step
 
-MVP is done (steps 1–5); next up: calendar, then On This Day, media grid, search.
+MVP is done (steps 1–5), plus the calendar; next up: On This Day, then media grid, search.
 The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
 logic (`NoteEdits`) and the rescan diff (`IndexPlan`) live in the pure-Kotlin `:core` module;
 `VaultAccess` (SAF via `DocumentsContract` queries), `SettingsStore` (DataStore),
@@ -171,6 +171,10 @@ lists the folder, re-reads only files whose mtime or size changed (or that faile
 newest first in batches, and drops rows for removed files; the index is reset when the vault or
 journal folder changes. The timeline observes the index and triggers a scan on resume, on
 pull-to-refresh and after saves.
+
+UI: bottom tabs Journal (timeline) and Calendar (month pager over `observeMarkedDays`, the
+selected day's entries below, + writes a backdated entry). The entry screen loads its day from
+the index (`TimelineViewModel.day`), so entries open from anywhere, not only loaded pages.
 
 Conflict handling: every save re-reads the file and applies the change to what is on disk
 now. Adds always merge; an edit/delete only applies if the entry's raw text is unchanged

@@ -4,30 +4,45 @@ import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
 import nl.markbroeders.journal.data.EntryKey
+import nl.markbroeders.journal.data.TimelineDay
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.data.VaultSettings
+import nl.markbroeders.journal.ui.calendar.CalendarScreen
+import nl.markbroeders.journal.ui.calendar.CalendarViewModel
 import nl.markbroeders.journal.ui.editor.EditorScreen
 import nl.markbroeders.journal.ui.editor.EditorTarget
 import nl.markbroeders.journal.ui.editor.EditorViewModel
@@ -67,11 +82,12 @@ private fun JournalRoot(container: AppContainer) {
     var editingSettings by rememberSaveable { mutableStateOf(false) }
     // Each visit to the setup screen gets a fresh SetupViewModel.
     var setupSession by rememberSaveable { mutableIntStateOf(0) }
-    // The entry being viewed, as a saveable id; it closes if a rescan removes the entry.
+    // The entry being viewed, as a saveable id ("date|time|ordinal"); it closes if a rescan removes the entry.
     var openEntryId by rememberSaveable { mutableStateOf<String?>(null) }
     // The editor's target ("new|date|time" or "edit|date|time|ordinal"); each opening is a new session.
     var editorTarget by rememberSaveable { mutableStateOf<String?>(null) }
     var editorSession by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable { mutableStateOf(Tab.Timeline) }
     val screenStates = rememberSaveableStateHolder()
 
     when (val s = state) {
@@ -95,13 +111,22 @@ private fun JournalRoot(container: AppContainer) {
             } else {
                 // A new vault or folder gets a fresh timeline.
                 val timeline = viewModel(key = "timeline-${s.settings}") { TimelineViewModel(container, s.settings) }
+                val calendar = viewModel(key = "calendar-${s.settings}") { CalendarViewModel(container) }
                 val timelineState by timeline.state.collectAsStateWithLifecycle()
-                val open = openEntryId?.let { id ->
-                    timelineState.days.firstNotNullOfOrNull { day ->
-                        day.entries.firstOrNull { entryId(it) == id }?.let { day to it }
-                    }
+                // Re-scan whenever the app comes back: Obsidian or sync may have changed files.
+                LifecycleResumeEffect(timeline) {
+                    timeline.refresh()
+                    onPauseOrDispose {}
                 }
+                val open = rememberOpenEntry(timeline, openEntryId, onGone = { openEntryId = null })
                 val editor = editorTarget?.let(::parseEditorTarget)
+                val newEntry = { date: LocalDate ->
+                    editorSession++
+                    editorTarget = "new|$date|${LocalTime.now().withSecond(0).withNano(0)}"
+                }
+                val bottomBar = @Composable {
+                    JournalNavigationBar(tab, onSelect = { tab = it })
+                }
                 when {
                     editor != null -> {
                         val vm = viewModel(key = "editor-$editorSession") {
@@ -128,26 +153,87 @@ private fun JournalRoot(container: AppContainer) {
                             onDismissDeletion = timeline::dismissDeletion,
                         )
                     }
+                    tab == Tab.Calendar -> {
+                        BackHandler { tab = Tab.Timeline }
+                        screenStates.SaveableStateProvider("calendar") {
+                            CalendarScreen(
+                                calendar,
+                                onOpenEntry = { openEntryId = entryId(it) },
+                                onNewEntry = newEntry,
+                                bottomBar = bottomBar,
+                            )
+                        }
+                    }
                     // Keeps the scroll position while another screen is open.
                     else -> screenStates.SaveableStateProvider("timeline") {
                         TimelineScreen(
                             timeline,
                             s.settings.journalFolder,
                             onOpenEntry = { openEntryId = entryId(it) },
-                            onNewEntry = {
-                                val now = LocalDateTime.now()
-                                editorSession++
-                                editorTarget = "new|${now.toLocalDate()}|${now.toLocalTime().withSecond(0).withNano(0)}"
-                            },
+                            onNewEntry = { newEntry(LocalDate.now()) },
                             onOpenSettings = {
                                 setupSession++
                                 editingSettings = true
                             },
+                            bottomBar = bottomBar,
                         )
                     }
                 }
             }
     }
+}
+
+private enum class Tab { Timeline, Calendar }
+
+@Composable
+private fun JournalNavigationBar(selected: Tab, onSelect: (Tab) -> Unit) {
+    val colors = NavigationBarItemDefaults.colors(
+        selectedIconColor = MaterialTheme.colorScheme.primary,
+        selectedTextColor = MaterialTheme.colorScheme.primary,
+        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+    )
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        NavigationBarItem(
+            selected = selected == Tab.Timeline,
+            onClick = { onSelect(Tab.Timeline) },
+            icon = { Icon(Icons.AutoMirrored.Outlined.ViewList, contentDescription = null) },
+            label = { Text("Journal") },
+            colors = colors,
+        )
+        NavigationBarItem(
+            selected = selected == Tab.Calendar,
+            onClick = { onSelect(Tab.Calendar) },
+            icon = { Icon(Icons.Outlined.CalendarMonth, contentDescription = null) },
+            label = { Text("Calendar") },
+            colors = colors,
+        )
+    }
+}
+
+/**
+ * The entry for [id] ("date|time|ordinal") with its day, read from the index and kept up to date.
+ * Null while loading or when nothing is open; calls [onGone] if the entry no longer exists
+ * (e.g. a rescan found it deleted).
+ */
+@Composable
+private fun rememberOpenEntry(
+    timeline: TimelineViewModel,
+    id: String?,
+    onGone: () -> Unit,
+): Pair<TimelineDay, TimelineEntry>? {
+    val date = id?.let { LocalDate.parse(it.substringBefore('|')) }
+    val loaded by produceState<Pair<String, TimelineDay?>?>(null, id) {
+        value = null
+        if (id != null && date != null) timeline.day(date).collect { value = id to it }
+    }
+    val current = loaded?.takeIf { it.first == id } ?: return null
+    val day = current.second
+    val entry = day?.entries?.firstOrNull { entryId(it) == id }
+    if (entry == null) {
+        LaunchedEffect(id) { onGone() }
+        return null
+    }
+    return day to entry
 }
 
 private fun entryId(entry: TimelineEntry): String = "${entry.date}|${entry.key.time}|${entry.key.ordinal}"

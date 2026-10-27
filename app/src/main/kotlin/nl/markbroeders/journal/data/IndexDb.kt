@@ -89,6 +89,18 @@ interface IndexDao {
     @Query("SELECT * FROM notes WHERE entryCount > 0 ORDER BY date DESC, documentId LIMIT :limit")
     fun observeDays(limit: Int): Flow<List<NoteWithEntries>>
 
+    /** The notes for one day that have entries (normally one), with their entries. */
+    @Transaction
+    @Query("SELECT * FROM notes WHERE date = :date AND entryCount > 0 ORDER BY documentId")
+    fun observeDay(date: LocalDate): Flow<List<NoteWithEntries>>
+
+    /** Days between [from] and [to] (inclusive) that have entries. */
+    @Query(
+        "SELECT date, SUM(entryCount) AS entries, MAX(starred) AS starred FROM notes " +
+            "WHERE entryCount > 0 AND date BETWEEN :from AND :to GROUP BY date",
+    )
+    fun observeMarkedDays(from: LocalDate, to: LocalDate): Flow<List<DayMarkRow>>
+
     @Query("SELECT COUNT(*) FROM notes WHERE readFailed")
     fun observeUnreadable(): Flow<Int>
 
@@ -143,6 +155,8 @@ interface IndexDao {
         private const val MAX_ARGS = 500
     }
 }
+
+data class DayMarkRow(val date: LocalDate, val entries: Int, val starred: Boolean)
 
 data class StampRow(val documentId: String, val lastModified: Long, val size: Long, val readFailed: Boolean)
 

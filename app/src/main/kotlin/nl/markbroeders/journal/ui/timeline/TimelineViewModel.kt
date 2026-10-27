@@ -6,11 +6,13 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import nl.markbroeders.journal.AppContainer
@@ -22,6 +24,7 @@ import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.data.VaultSettings
 import nl.markbroeders.journal.data.toTimelineDay
 import nl.markbroeders.journal.sync.ScanResult
+import java.time.LocalDate
 
 enum class TimelineStatus { Loading, Ready, FolderMissing, Error }
 
@@ -135,6 +138,10 @@ class TimelineViewModel(
             refresh()
         }
     }
+
+    /** The day for [date] as indexed (null if it has no entries), kept up to date. */
+    fun day(date: LocalDate): Flow<TimelineDay?> =
+        dao.observeDay(date).map { rows -> rows.firstOrNull()?.toTimelineDay() }
 
     fun dismissDeletion() = _state.update { it.copy(deletion = null) }
 
