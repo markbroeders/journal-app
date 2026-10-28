@@ -8,7 +8,7 @@ other way round).
 <p>
   <img src="docs/screenshots/timeline.png" width="180" alt="Timeline with an On This Day banner">
   <img src="docs/screenshots/entry.png" width="180" alt="An entry with a heading, photo, quote and task list">
-  <img src="docs/screenshots/calendar.png" width="180" alt="Calendar with days that have entries marked">
+  <img src="docs/screenshots/calendar.png" width="180" alt="Calendar with photos on the days that have them">
   <img src="docs/screenshots/search.png" width="180" alt="Search results with the matching word highlighted">
   <img src="docs/screenshots/editor.png" width="180" alt="Writing a new entry">
 </p>

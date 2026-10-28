@@ -146,7 +146,7 @@ fun SearchScreen(
                                     firstOfDay = i == 0,
                                     lastOfDay = i == day.entries.lastIndex,
                                     dayHeader = false,
-                                    preview = snippets[i]?.let { highlighted(it, entry.title) },
+                                    preview = snippets[i]?.let { highlighted(it, if (entry.hasTitle) entry.title else "") },
                                 ) {
                                     keyboard?.hide()
                                     onOpenEntry(entry)
