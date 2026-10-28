@@ -1,17 +1,7 @@
 package nl.markbroeders.journal.ui.entry
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import coil3.compose.AsyncImage
 import nl.markbroeders.journal.ui.media.MediaEntry
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +9,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,10 +47,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import nl.markbroeders.journal.data.Embeds
-import nl.markbroeders.journal.data.EntryBlock
+import java.time.LocalDate
 import nl.markbroeders.journal.data.TimelineDay
 import nl.markbroeders.journal.data.TimelineEntry
+import nl.markbroeders.journal.ui.components.MarkdownView
 import nl.markbroeders.journal.ui.components.longDate
 import nl.markbroeders.journal.ui.components.moodEmoji
 import nl.markbroeders.journal.ui.components.timeLabel
@@ -83,6 +72,10 @@ fun EntryScreen(
     /** The entry's photos and videos that resolve to a file; placed where the text embeds them. */
     photos: List<MediaEntry> = emptyList(),
     onOpenPhoto: (MediaEntry) -> Unit = {},
+    /** A link to a daily note was tapped. */
+    onOpenDate: (LocalDate) -> Unit = {},
+    /** A `#tag` was tapped (in the text or the tag chips). */
+    onTag: (String) -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
     var menu by remember { mutableStateOf(false) }
@@ -162,26 +155,17 @@ fun EntryScreen(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(Modifier.height(20.dp))
 
-            // Text and photos in the order they appear in the note.
-            val blocks = remember(entry) { entry.blocks() }
-            val byName = remember(photos) { photos.associateBy { it.fileName.lowercase() } }
-            val shown = blocks.mapNotNull { block ->
-                when (block) {
-                    is EntryBlock.Text -> block
-                    // Embeds that don't resolve to a file are left out, as in the media grid.
-                    is EntryBlock.Media -> Embeds.fileName(block.target)?.let { byName[it.lowercase()] }
-                }
-            }
-            if (shown.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    shown.forEach { item ->
-                        when (item) {
-                            is EntryBlock.Text -> SelectionContainer {
-                                Text(item.text, style = MaterialTheme.typography.bodyLarge)
-                            }
-                            is MediaEntry -> Photo(item) { onOpenPhoto(item) }
-                        }
-                    }
+            if (entry.body.isNotBlank()) {
+                val byName = remember(photos) { photos.associateBy { it.fileName.lowercase() } }
+                val resolve = remember(byName) { { name: String -> byName[name.lowercase()] } }
+                SelectionContainer {
+                    MarkdownView(
+                        entry.body,
+                        resolveMedia = resolve,
+                        onOpenPhoto = onOpenPhoto,
+                        onOpenDate = onOpenDate,
+                        onTag = onTag,
+                    )
                 }
             } else {
                 Text(
@@ -195,7 +179,7 @@ fun EntryScreen(
             if (tags.isNotEmpty()) {
                 Spacer(Modifier.height(24.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    tags.forEach { TagChip(it) }
+                    tags.forEach { tag -> TagChip(tag) { onTag(tag) } }
                 }
             }
         }
@@ -233,40 +217,6 @@ fun EntryScreen(
     }
 }
 
-/** A photo at full width (or a video's first frame with a play icon); tapping opens the viewer. */
-@Composable
-private fun Photo(photo: MediaEntry, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        AsyncImage(
-            model = photo.uri,
-            contentDescription = photo.fileName,
-            contentScale = ContentScale.FillWidth,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 120.dp),
-        )
-        if (photo.isVideo) {
-            Icon(
-                Icons.Filled.PlayArrow,
-                contentDescription = "Video",
-                tint = Color.White,
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .padding(8.dp),
-            )
-        }
-    }
-}
-
 @Composable
 private fun Detail(icon: ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -277,8 +227,9 @@ private fun Detail(icon: ImageVector, text: String) {
 }
 
 @Composable
-private fun TagChip(tag: String) {
+private fun TagChip(tag: String, onClick: () -> Unit) {
     Surface(
+        onClick = onClick,
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         shape = MaterialTheme.shapes.small,

@@ -21,46 +21,18 @@ data class TimelineEntry(
     val preview: String,
     /** Plain text of the whole body, paragraphs separated by one blank line. */
     val text: String,
+    /** The body as written (Markdown, without heading and inline fields), for the formatted view. */
+    val body: String,
     val location: String?,
     val weather: String?,
     val mood: Int?,
     val tags: List<String>,
     /** Targets of the media embeds (`![[photo.jpg]]`, `![](a/b.png)`), in order. */
     val media: List<String>,
-    /**
-     * Where each of [media] sits: the offset in [text] it comes before. Offsets fall at the end
-     * of a paragraph (or at 0), so the text can be split there; see [blocks].
-     */
-    val mediaOffsets: List<Int>,
     /** The section's exact source text, to detect changes before editing or deleting it. */
     val raw: String,
 ) {
     val mediaCount: Int get() = media.size
-
-    /** The text and media in reading order, e.g. a paragraph, a photo, more text. */
-    fun blocks(): List<EntryBlock> {
-        val blocks = mutableListOf<EntryBlock>()
-        var start = 0
-        fun addText(end: Int) {
-            val part = text.substring(start, end.coerceIn(start, text.length)).trim('\n')
-            if (part.isNotEmpty()) blocks += EntryBlock.Text(part)
-        }
-        media.forEachIndexed { i, target ->
-            val offset = mediaOffsets.getOrNull(i) ?: text.length
-            addText(offset)
-            start = maxOf(start, offset.coerceAtMost(text.length))
-            blocks += EntryBlock.Media(i, target)
-        }
-        addText(text.length)
-        return blocks
-    }
-}
-
-sealed interface EntryBlock {
-    data class Text(val text: String) : EntryBlock
-
-    /** The [index]th of [TimelineEntry.media]. */
-    data class Media(val index: Int, val target: String) : EntryBlock
 }
 
 object Timeline {
@@ -89,35 +61,7 @@ object Timeline {
     }
 
     private fun entry(entry: Entry, date: LocalDate): TimelineEntry {
-        // Cut the body at each media embed, so the text around it can be shown before and after.
-        val body = entry.body
-        val media = Markdown.embedSpans(body).filter { Markdown.isMedia(it.target) }
-        val text = StringBuilder()
-        val offsets = mutableListOf<Int>()
-        var start = 0
-        fun addText(end: Int) {
-            // After an embed the rest of its line is a new paragraph: drop the space before it.
-            val part = PlainText.from(body.substring(start, end).let { if (start > 0) it.trimStart(' ', '\t') else it })
-            if (part.isEmpty()) return
-            if (text.isNotEmpty()) text.append("\n\n")
-            text.append(part)
-        }
-        for (embed in media) {
-            addText(embed.range.first)
-            offsets += text.length
-            start = embed.range.last + 1
-        }
-        addText(body.length)
-        return entry(entry, date, text.toString(), media.map { it.target }, offsets)
-    }
-
-    private fun entry(
-        entry: Entry,
-        date: LocalDate,
-        text: String,
-        media: List<String>,
-        mediaOffsets: List<Int>,
-    ): TimelineEntry {
+        val text = PlainText.from(entry.body)
         val lines = text.lines().filter { it.isNotBlank() }
         return TimelineEntry(
             date = date,
@@ -125,12 +69,12 @@ object Timeline {
             title = PlainText.shorten(lines.firstOrNull().orEmpty(), TITLE_LENGTH),
             preview = PlainText.shorten(lines.drop(1).joinToString(" "), PREVIEW_LENGTH),
             text = text,
+            body = entry.body,
             location = entry.location?.takeIf { it.isNotBlank() },
             weather = entry.weather?.takeIf { it.isNotBlank() },
             mood = entry.mood,
             tags = entry.tags,
-            media = media,
-            mediaOffsets = mediaOffsets,
+            media = entry.embeds.filter(Markdown::isMedia),
             raw = entry.raw,
         )
     }

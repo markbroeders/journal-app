@@ -116,8 +116,6 @@ written in Obsidian.
 - Storage Access Framework (`ACTION_OPEN_DOCUMENT_TREE` on the vault root + persisted
   URI permission; root is needed to read `.obsidian/app.json`)
 - YAML: a small, lenient frontmatter parser (e.g. snakeyaml-engine or kaml)
-- Weather: Open-Meteo (no API key)
-- Location: Fused Location Provider + Geocoder
 
 ## Package structure
 
@@ -131,16 +129,13 @@ data/
   IndexDb (Room)     // cache rows per entry: date, time, ordinal, path, tags,
                      //   snippet, hasMedia, fileLastModified
   MediaStore         // copy/compress photos into the attachment folder
-services/
-  LocationService    // current location → place name
-  WeatherService     // current weather from Open-Meteo
 sync/
   VaultScanner       // scan Journal/YYYY/*.md by mtime, update IndexDb
 ui/
   timeline/          // reverse-chronological feed of entries
   calendar/          // month grid with markers on days that have a note
   onthisday/         // same date in previous years
-  editor/            // markdown editor + chips (tags, mood, location, weather)
+  editor/            // markdown editor + chips (tags, mood)
   media/             // photo grid across all entries
   search/            // full-text + tag search over the index
 ```
@@ -154,16 +149,17 @@ ui/
 5. IndexDb + VaultScanner
 
 Then: calendar, On This Day, media grid, search, quick capture (home-screen widget +
-share target). Location and weather last.
+share target).
+
+Location and weather are not planned: the app doesn't record them (no location permission, no
+network calls). Existing `location::` / `weather::` fields are still read, shown and preserved.
 
 ## Next step
 
 MVP is done (steps 1–5), plus calendar, On This Day, the media grid, adding photos, search,
-photos shown at their position in the entry text and quick capture (share target, widget,
-app shortcuts).
+quick capture (share target, widget, app shortcuts) and a formatted entry view.
 
-**Next up:** location and weather (Fused Location Provider + Geocoder, Open-Meteo), filled in
-as `location::` / `weather::` when a new entry is created.
+**Next up:** nothing fixed. Candidates: app lock (biometric/PIN), an optional daily reminder.
 
 The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
 logic (`NoteEdits`), the rescan diff (`IndexPlan`) and the search syntax (`SearchQuery`) live
@@ -189,10 +185,14 @@ attachment folder from `.obsidian/app.json` (`ObsidianConfig`, `AttachmentScanne
 vault root, `Attachments` and the year folders into `attachments`, and the grid joins the two
 by name (case-insensitive), like Obsidian resolves `![[name.jpg]]`. Thumbnails via Coil
 (video frames via coil-video); a full-screen pager viewer links to the entry, videos open in
-another app. The entry screen shows an entry's photos full width where the text embeds them:
-`Timeline` cuts the body at each media embed (`Markdown.embedSpans`, skipping code and comments)
-and stores each embed's offset in the plain text (`mediaOffsets`); `TimelineEntry.blocks()` gives
-text and media in reading order. An embed mid-paragraph splits it; unresolved embeds are skipped.
+another app.
+Entry view: the index stores each entry's Markdown `body`; `MarkdownDoc` (`:core`) parses it into
+blocks/inlines (CommonMark basics plus Obsidian's wikilinks, embeds, `==highlight==`, `#tags`,
+callouts, tasks, tables; `%%comments%%` hidden; single newlines are line breaks) and
+`MarkdownView` renders them. Photos/videos appear full width where they're embedded (a
+paragraph is split around them; unresolved embeds are skipped). Web links open the browser,
+`#tags` open Search, `[[YYYY-MM-DD]]` links open that day in the calendar; other wikilinks are
+styled only. Table column alignment is ignored.
 Adding photos: the editor's gallery (system photo picker) and camera (TakePicture via a
 FileProvider cache file) buttons; `PhotoImporter` writes upright JPEGs (long edge ≤ 2560) into
 the attachment folder as `YYYY-MM-DD-HHmm-N.jpg` (`Photos.nextName`, never overwriting; the

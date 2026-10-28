@@ -68,14 +68,14 @@ data class EntryRow(
     /** Snippet for list previews. */
     val preview: String,
     val text: String,
+    /** Markdown body for the formatted entry view. */
+    val body: String,
     val location: String?,
     val weather: String?,
     val mood: Int?,
     val tags: List<String>,
     /** Media embed targets, in order (see [MediaRow] for lookups). */
     val media: List<String>,
-    /** Where each media embed sits in [text] ([TimelineEntry.mediaOffsets]). */
-    val mediaOffsets: List<Int>,
     val raw: String,
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
 )
@@ -307,10 +307,6 @@ class IndexConverters {
     @TypeConverter fun tagsToString(tags: List<String>?): String? = tags?.joinToString("\n")
     @TypeConverter fun stringToTags(value: String?): List<String>? =
         value?.let { if (it.isEmpty()) emptyList() else it.split('\n') }
-
-    @TypeConverter fun intsToString(ints: List<Int>?): String? = ints?.joinToString(",")
-    @TypeConverter fun stringToInts(value: String?): List<Int>? =
-        value?.let { if (it.isEmpty()) emptyList() else it.split(',').map(String::toInt) }
 }
 
 /**
@@ -322,7 +318,7 @@ class IndexConverters {
     entities = [
         NoteRow::class, EntryRow::class, EntryFts::class, MediaRow::class, AttachmentRow::class, MetaRow::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(IndexConverters::class)
@@ -341,8 +337,8 @@ fun TimelineDay.toRows(documentId: String, lastModified: Long, size: Long): Pair
     val note = NoteRow(documentId, date, lastModified, size, starred, mood, tags, entries.size, readFailed = false)
     val rows = entries.mapIndexed { i, e ->
         EntryRow(
-            documentId, i, e.date, e.key.time, e.key.ordinal, e.title, e.preview, e.text,
-            e.location, e.weather, e.mood, e.tags, e.media, e.mediaOffsets, e.raw,
+            documentId, i, e.date, e.key.time, e.key.ordinal, e.title, e.preview, e.text, e.body,
+            e.location, e.weather, e.mood, e.tags, e.media, e.raw,
         )
     }
     return note to rows
@@ -366,12 +362,12 @@ fun EntryRow.toTimelineEntry(): TimelineEntry = TimelineEntry(
     title = title,
     preview = preview,
     text = text,
+    body = body,
     location = location,
     weather = weather,
     mood = mood,
     tags = tags,
     media = media,
-    mediaOffsets = mediaOffsets,
     raw = raw,
 )
 

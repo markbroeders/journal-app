@@ -235,6 +235,17 @@ private fun JournalRoot(
                             onOpenPhoto = { photo ->
                                 viewerIndex = mediaItems?.indexOf(photo)?.takeIf { it >= 0 }
                             },
+                            onOpenDate = { date ->
+                                openEntryId = null
+                                calendar.select(date)
+                                tab = Tab.Calendar
+                            },
+                            onTag = { tag ->
+                                openEntryId = null
+                                search.setText("")
+                                search.addTag(tag)
+                                tab = Tab.Search
+                            },
                         )
                     }
                     showOnThisDay -> OnThisDayScreen(
