@@ -97,4 +97,5 @@ See [`CLAUDE.md`](CLAUDE.md) for the detailed design notes.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The bundled Literata font is licensed under the
+[SIL Open Font License 1.1](docs/licenses/Literata-OFL.txt).

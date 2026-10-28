@@ -185,6 +185,17 @@ vault root, `Attachments` and the year folders into `attachments`, and the grid 
 by name (case-insensitive), like Obsidian resolves `![[name.jpg]]`. Thumbnails via Coil
 (video frames via coil-video); a full-screen pager viewer links to the entry, videos open in
 another app.
+Look: a sky-blue header in both themes; Settings → Appearance picks System / Light / Dark
+(`SettingsStore.appearance`, `JournalTheme(dark, serif)`) and the entry font. Entry text (the
+entry view's `MarkdownView` and the editor) is set in Literata via `TextStyle.reading()` unless
+sans serif is chosen; the font is a Latin subset of the variable font with optical size fixed at
+12 (`res/font`, OFL). Lists (timeline, calendar day, On This Day, search) show each day as one
+rounded card on a tinted ground (`JournalColors.ground`/`card`): `EntryRow` items draw the card's
+segments (`firstOfDay`/`lastOfDay`), the timeline's first entry carries the day header, and
+`ListHeader` sits between cards. An entry's first resolvable photo/video is its thumbnail and a
+day's first one fills its calendar circle (`EntryPhotos`, built from the media grid's list and
+provided via `LocalEntryPhotos`). `TimelineEntry.hasTitle` decides whether the first line is shown
+as a bold title or the text runs on.
 Entry view: the index stores each entry's Markdown `body`; `MarkdownDoc` (`:core`) parses it into
 blocks/inlines (CommonMark basics plus Obsidian's wikilinks, embeds, `==highlight==`, `#tags`,
 callouts, tasks, tables; `%%comments%%` hidden; single newlines are line breaks) and
