@@ -1,5 +1,9 @@
 package nl.markbroeders.journal.ui.setup
 
+import android.Manifest
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,7 +23,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,7 +40,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,15 +58,20 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import nl.markbroeders.journal.data.ReminderSettings
 import nl.markbroeders.journal.data.VaultPaths
 import nl.markbroeders.journal.lock.isDeviceSecure
+import nl.markbroeders.journal.reminder.DailyReminder
 import nl.markbroeders.journal.ui.theme.journalTopBarColors
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 /**
  * Picks the vault root and the journal folder inside it. [onCancel] is null during first-run
  * setup (there is nothing to go back to) and set when changing settings later.
  * [lockEnabled] is null during setup; in settings it shows the app lock switch, which applies
- * right away (turning it on asks to unlock first).
+ * right away (turning it on asks to unlock first). [reminder] likewise shows the daily reminder's
+ * settings, also applied right away.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +82,8 @@ fun SetupScreen(
     onCancel: (() -> Unit)?,
     lockEnabled: Boolean? = null,
     onLockChange: (Boolean) -> Unit = {},
+    reminder: ReminderSettings? = null,
+    onReminderChange: (ReminderSettings) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -126,6 +142,7 @@ fun SetupScreen(
             }
 
             if (lockEnabled != null) LockSection(lockEnabled, onLockChange)
+            if (reminder != null) ReminderSection(reminder, onReminderChange)
         }
     }
 }
@@ -230,6 +247,89 @@ private fun LockSection(enabled: Boolean, onChange: (Boolean) -> Unit) {
         }
     }
 }
+
+@Composable
+private fun ReminderSection(reminder: ReminderSettings, onChange: (ReminderSettings) -> Unit) {
+    val context = LocalContext.current
+    // Checked again on resume: notifications may have been allowed in Android's settings.
+    var canNotify by remember { mutableStateOf(DailyReminder.canNotify(context)) }
+    LifecycleResumeEffect(Unit) {
+        canNotify = DailyReminder.canNotify(context)
+        onPauseOrDispose {}
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        canNotify = DailyReminder.canNotify(context)
+    }
+    var pickingTime by remember { mutableStateOf(false) }
+
+    SectionCard("Daily reminder") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "A notification at a set time, on days you haven't written anything yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(12.dp))
+            Switch(
+                checked = reminder.enabled,
+                onCheckedChange = { on ->
+                    onChange(reminder.copy(enabled = on))
+                    if (on && !canNotify && Build.VERSION.SDK_INT >= 33) {
+                        permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                },
+            )
+        }
+        if (reminder.enabled) {
+            OutlinedButton(onClick = { pickingTime = true }) {
+                Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Remind me at ${reminder.time.format(TIME_FORMAT)}")
+            }
+            if (!canNotify) {
+                Notice(Icons.Filled.Warning, "Notifications for Journal are turned off, so the reminder can't show.", isError = true)
+                OutlinedButton(onClick = {
+                    context.startActivity(
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                    )
+                }) {
+                    Text("Open notification settings")
+                }
+            }
+        }
+    }
+
+    if (pickingTime) {
+        ReminderTimeDialog(
+            initial = reminder.time,
+            onDismiss = { pickingTime = false },
+            onConfirm = { time ->
+                pickingTime = false
+                onChange(reminder.copy(time = time))
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderTimeDialog(initial: LocalTime, onDismiss: () -> Unit, onConfirm: (LocalTime) -> Unit) {
+    val state = rememberTimePickerState(initialHour = initial.hour, initialMinute = initial.minute, is24Hour = true)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reminder time") },
+        text = { TimePicker(state) },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun checkMessage(check: JournalCheck): String = when (check) {
     JournalCheck.Pending -> "Checking…"

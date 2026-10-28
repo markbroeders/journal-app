@@ -157,13 +157,12 @@ network calls). Existing `location::` / `weather::` fields are still read, shown
 ## Next step
 
 MVP is done (steps 1–5), plus calendar, On This Day, the media grid, adding photos, search,
-quick capture (share target, widget, app shortcuts), a formatted entry view and the app lock.
-
-**Possible next:** an optional daily reminder.
+quick capture (share target, widget, app shortcuts), a formatted entry view, the app lock and
+the daily reminder. All planned features are in.
 
 The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
-logic (`NoteEdits`), the rescan diff (`IndexPlan`) and the search syntax (`SearchQuery`) live
-in the pure-Kotlin `:core` module; `VaultAccess` (SAF via `DocumentsContract` queries), `SettingsStore` (DataStore),
+logic (`NoteEdits`), the rescan diff (`IndexPlan`), the search syntax (`SearchQuery`) and the
+reminder time (`Reminder`) live in the pure-Kotlin `:core` module; `VaultAccess` (SAF via `DocumentsContract` queries), `SettingsStore` (DataStore),
 `JournalRepository` (load, save, atomic replace, temp-file recovery) and `IndexDb` (Room) are
 in `:app`, with `VaultScanner` and the periodic `ScanWorker` in `sync/`.
 
@@ -217,12 +216,23 @@ builds the raw query, observed so results follow rescans. Results are grouped by
 App lock (`lock/`, `ui/lock/`): a Settings switch (`SettingsStore.appLock`; turning it on needs a
 successful unlock and a device screen lock). `AppLock` holds the process's unlocked state; a new
 process starts locked and `MainActivity.onStop` locks again, except while an activity started for
-a result (photo picker, camera, folder picker) is open, for up to 5 minutes. BiometricPrompt
+a result (photo picker, camera, folder picker) is open, for up to 5 minutes (a plain
+`startActivity`, e.g. a link, passes `requestCode` -1 and does lock). BiometricPrompt
 (`BIOMETRIC_WEAK or DEVICE_CREDENTIAL`, hence `FragmentActivity`). While locked `JournalRoot`
 shows only `LockScreen` (screens keep their saveable state); a quick capture instead opens the
 new entry's editor `writeOnly` (the day's star/tags neither loaded nor shown) and finishes the
 activity when it closes. With the lock on, recents show a blank snapshot
 (`setRecentsScreenshotEnabled`, `FLAG_SECURE` below API 33).
+
+Daily reminder (`reminder/`): a Settings switch and time (`SettingsStore.reminder`, default 20:00;
+turning it on asks for `POST_NOTIFICATIONS`, and a warning links to Android's notification
+settings while they're off). `DailyReminder.schedule` sets an inexact `setWindow` alarm (10 min
+window, no exact-alarm permission) at `Reminder.nextAt`; `JournalApp` reschedules whenever the
+setting changes and on every process start. `ReminderReceiver` reads today's note from the vault
+(not the index) and posts the notification only if `Reminder.isWritten` is false, then sets
+tomorrow's alarm; it also reschedules on boot, app update and time/time zone changes. Tapping the
+notification opens a new entry like the widget (write-only while locked); a Photo action starts
+with the camera.
 
 Conflict handling: every save re-reads the file and applies the change to what is on disk
 now. Adds always merge; an edit/delete only applies if the entry's raw text is unchanged

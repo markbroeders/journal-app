@@ -6,12 +6,16 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.request.crossfade
 import coil3.video.VideoFrameDecoder
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import nl.markbroeders.journal.data.IndexDb
 import nl.markbroeders.journal.data.JournalRepository
 import nl.markbroeders.journal.data.PhotoImporter
 import nl.markbroeders.journal.data.SettingsStore
 import nl.markbroeders.journal.data.VaultAccess
 import nl.markbroeders.journal.lock.AppLock
+import nl.markbroeders.journal.reminder.DailyReminder
 import nl.markbroeders.journal.sync.ScanWorker
 import nl.markbroeders.journal.sync.VaultScanner
 
@@ -23,6 +27,10 @@ class JournalApp : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         container = AppContainer(this)
         ScanWorker.schedule(this)
+        // Also restores the alarm after a force stop (which cancels it) once the app is opened.
+        MainScope().launch {
+            container.settings.reminder.distinctUntilChanged().collect { DailyReminder.schedule(this@JournalApp, it) }
+        }
     }
 
     /** Thumbnails for the media grid; videos show their first frame. */

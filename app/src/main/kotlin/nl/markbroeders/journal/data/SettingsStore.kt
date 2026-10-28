@@ -4,13 +4,18 @@ import android.content.Context
 import android.net.Uri
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.LocalTime
 
 /** The chosen vault (SAF tree URI of the vault root) and the journal folder inside it. */
 data class VaultSettings(val vaultUri: Uri, val journalFolder: String)
+
+/** The daily reminder: a notification at [time] on days without an entry yet. */
+data class ReminderSettings(val enabled: Boolean, val time: LocalTime)
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
@@ -36,9 +41,25 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { prefs -> prefs[APP_LOCK] = enabled }
     }
 
+    val reminder: Flow<ReminderSettings> = context.dataStore.data.map { prefs ->
+        ReminderSettings(
+            enabled = prefs[REMINDER] ?: false,
+            time = prefs[REMINDER_MINUTE]?.let { LocalTime.ofSecondOfDay(it * 60L) } ?: Reminder.DEFAULT_TIME,
+        )
+    }
+
+    suspend fun setReminder(settings: ReminderSettings) {
+        context.dataStore.edit { prefs ->
+            prefs[REMINDER] = settings.enabled
+            prefs[REMINDER_MINUTE] = settings.time.hour * 60 + settings.time.minute
+        }
+    }
+
     private companion object {
         val VAULT_URI = stringPreferencesKey("vault_uri")
         val JOURNAL_FOLDER = stringPreferencesKey("journal_folder")
         val APP_LOCK = booleanPreferencesKey("app_lock")
+        val REMINDER = booleanPreferencesKey("reminder")
+        val REMINDER_MINUTE = intPreferencesKey("reminder_minute")
     }
 }

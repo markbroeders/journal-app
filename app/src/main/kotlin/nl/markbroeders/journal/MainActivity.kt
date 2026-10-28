@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -182,9 +183,15 @@ class MainActivity : FragmentActivity() {
         if (!awayForResult && !isChangingConfigurations) container.lock.lock()
     }
 
-    // Activity result launchers (Compose's included) end up here.
+    // Activity result launchers (Compose's included) end up here, but so does a plain startActivity
+    // (a link, a video, Android's settings) with requestCode -1: no result comes back from those.
     @Deprecated("Deprecated in Java")
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        if (requestCode < 0) {
+            @Suppress("DEPRECATION")
+            super.startActivityForResult(intent, requestCode, options)
+            return
+        }
         awayForResult = true
         try {
             @Suppress("DEPRECATION")
@@ -556,5 +563,17 @@ private fun SetupRoute(
     lock: LockUi? = null,
 ) {
     val viewModel = viewModel(key = "setup-$session") { SetupViewModel(container, initial) }
-    SetupScreen(viewModel, accessLost, onDone, onCancel, lockEnabled = lock?.enabled, onLockChange = { lock?.onSetEnabled(it) })
+    val reminder by container.settings.reminder.collectAsStateWithLifecycle(initialValue = null)
+    val scope = rememberCoroutineScope()
+    SetupScreen(
+        viewModel,
+        accessLost,
+        onDone,
+        onCancel,
+        lockEnabled = lock?.enabled,
+        onLockChange = { lock?.onSetEnabled(it) },
+        // Like the lock, only in settings, not during first-run setup.
+        reminder = reminder.takeIf { lock != null },
+        onReminderChange = { scope.launch { container.settings.setReminder(it) } },
+    )
 }
