@@ -5,6 +5,16 @@ existing [Obsidian](https://obsidian.md) vault. There is no database of record a
 your daily notes are the data, and anything written in the app looks right in Obsidian (and the
 other way round).
 
+<p>
+  <img src="docs/screenshots/timeline.png" width="180" alt="Timeline with an On This Day banner">
+  <img src="docs/screenshots/entry.png" width="180" alt="An entry with a heading, photo, quote and task list">
+  <img src="docs/screenshots/calendar.png" width="180" alt="Calendar with days that have entries marked">
+  <img src="docs/screenshots/search.png" width="180" alt="Search results with the matching word highlighted">
+  <img src="docs/screenshots/editor.png" width="180" alt="Writing a new entry">
+</p>
+
+<sub>Timeline, entry, calendar, search and editor, shown with a demo vault.</sub>
+
 ## Features
 
 - **Timeline** of all entries, newest first, with an *On This Day* banner for earlier years.
