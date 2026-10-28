@@ -157,14 +157,9 @@ network calls). Existing `location::` / `weather::` fields are still read, shown
 ## Next step
 
 MVP is done (steps 1–5), plus calendar, On This Day, the media grid, adding photos, search,
-quick capture (share target, widget, app shortcuts) and a formatted entry view.
+quick capture (share target, widget, app shortcuts), a formatted entry view and the app lock.
 
-**Next up:** app lock (biometric, with the device PIN/pattern as fallback, via BiometricPrompt).
-Quick capture (share, widget, shortcuts) stays usable while locked, but write-only: a locked
-capture shows only the new entry's editor, nothing of existing entries (also not the day's
-star/tags it loads), and closing it leaves the app locked (share returns to the sending app;
-widget/shortcut finish instead of showing the timeline). Also hide content in the recents
-screen (`FLAG_SECURE` or a blank recents snapshot). Possible after that: an optional daily reminder.
+**Possible next:** an optional daily reminder.
 
 The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
 logic (`NoteEdits`), the rescan diff (`IndexPlan`) and the search syntax (`SearchQuery`) live
@@ -218,6 +213,16 @@ over the entries' plain `text` and `location`, kept in step with `entries` by Ro
 `"phrases"` and `#tags` (inline or frontmatter, nested tags included, via `LIKE`); `SearchSql`
 builds the raw query, observed so results follow rescans. Results are grouped by day with FTS
 `snippet()`s highlighted; with an empty field the tab lists all tags as chips.
+
+App lock (`lock/`, `ui/lock/`): a Settings switch (`SettingsStore.appLock`; turning it on needs a
+successful unlock and a device screen lock). `AppLock` holds the process's unlocked state; a new
+process starts locked and `MainActivity.onStop` locks again, except while an activity started for
+a result (photo picker, camera, folder picker) is open, for up to 5 minutes. BiometricPrompt
+(`BIOMETRIC_WEAK or DEVICE_CREDENTIAL`, hence `FragmentActivity`). While locked `JournalRoot`
+shows only `LockScreen` (screens keep their saveable state); a quick capture instead opens the
+new entry's editor `writeOnly` (the day's star/tags neither loaded nor shown) and finishes the
+activity when it closes. With the lock on, recents show a blank snapshot
+(`setRecentsScreenshotEnabled`, `FLAG_SECURE` below API 33).
 
 Conflict handling: every save re-reads the file and applies the change to what is on disk
 now. Adds always merge; an edit/delete only applies if the entry's raw text is unchanged

@@ -45,6 +45,9 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.androidx.biometric)
+    // Newer than the one biometric pulls in (BiometricPrompt needs a FragmentActivity).
+    implementation(libs.androidx.fragment)
     implementation(libs.coil.compose)
     implementation(libs.coil.video)
     implementation(platform(libs.compose.bom))

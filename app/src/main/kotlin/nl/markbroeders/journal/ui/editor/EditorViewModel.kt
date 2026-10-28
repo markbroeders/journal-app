@@ -35,6 +35,8 @@ sealed interface EditorTarget {
 data class EditorUiState(
     val loading: Boolean = true,
     val isNew: Boolean,
+    /** A new entry written while the app is locked: nothing of the day's note is shown. */
+    val writeOnly: Boolean = false,
     val date: LocalDate,
     /** Null for the untimed entry. */
     val time: LocalTime?,
@@ -67,6 +69,9 @@ data class EditorUiState(
  *
  * A new entry can start with [initialText] and [initialPhotos] (shared from another app); the
  * photos are copied into the vault once loaded, like photos added from the gallery.
+ *
+ * [writeOnly] (a quick capture while the app is locked, new entries only) leaves out everything
+ * the day's note already holds: its star and tags aren't loaded, so they can't be changed either.
  */
 class EditorViewModel(
     container: AppContainer,
@@ -75,6 +80,7 @@ class EditorViewModel(
     private val saved: SavedStateHandle,
     private val initialText: String = "",
     private val initialPhotos: List<Uri> = emptyList(),
+    private val writeOnly: Boolean = false,
 ) : ViewModel() {
 
     private val repository = container.journal
@@ -85,7 +91,7 @@ class EditorViewModel(
 
     private val _state = MutableStateFlow(
         when (target) {
-            is EditorTarget.New -> EditorUiState(isNew = true, date = target.date, time = target.time)
+            is EditorTarget.New -> EditorUiState(isNew = true, writeOnly = writeOnly, date = target.date, time = target.time)
             is EditorTarget.Existing -> EditorUiState(isNew = false, date = target.date, time = target.key.time)
         },
     )
@@ -139,10 +145,14 @@ class EditorViewModel(
 
     fun onMoodChange(mood: Int?) = _state.update { it.copy(mood = mood) }
 
-    fun onStarredChange(starred: Boolean) = _state.update { it.copy(starred = starred) }
+    fun onStarredChange(starred: Boolean) {
+        if (!writeOnly) _state.update { it.copy(starred = starred) }
+    }
 
-    fun onTagsChange(tags: List<String>) =
+    fun onTagsChange(tags: List<String>) {
+        if (writeOnly) return
         _state.update { it.copy(tags = tags.map { t -> t.trim().removePrefix("#") }.filter { t -> t.isNotEmpty() }.distinct()) }
+    }
 
     /** New entries only: moving to another day reloads that day's star and tags. */
     fun onDateChange(date: LocalDate) {
@@ -234,7 +244,8 @@ class EditorViewModel(
                 }
                 originalRaw = entry?.raw.orEmpty()
                 originalFields = entry?.fields.orEmpty()
-                val tags = note.frontmatter?.tags.orEmpty()
+                val tags = if (writeOnly) emptyList() else note.frontmatter?.tags.orEmpty()
+                val starred = !writeOnly && note.starred
                 // An existing entry starts from the file; a new one keeps what was typed (date change)
                 // or starts with the shared text.
                 val body = when {
@@ -242,7 +253,7 @@ class EditorViewModel(
                     !shareApplied -> initialText
                     else -> _state.value.body
                 }
-                initial = Snapshot(entry?.body.orEmpty(), entry?.mood, note.starred, tags)
+                initial = Snapshot(entry?.body.orEmpty(), entry?.mood, starred, tags)
                 val restored = saved.get<String>(KEY_BODY) ?: body
                 _state.update {
                     it.copy(
@@ -252,7 +263,7 @@ class EditorViewModel(
                         cursor = restored.length,
                         bodyRevision = it.bodyRevision + 1,
                         mood = if (it.isNew) it.mood else entry?.mood,
-                        starred = note.starred,
+                        starred = starred,
                         tags = tags,
                         location = entry?.location,
                         weather = entry?.weather,

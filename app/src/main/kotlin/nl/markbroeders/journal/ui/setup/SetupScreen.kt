@@ -32,23 +32,32 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nl.markbroeders.journal.data.VaultPaths
+import nl.markbroeders.journal.lock.isDeviceSecure
 import nl.markbroeders.journal.ui.theme.journalTopBarColors
 
 /**
  * Picks the vault root and the journal folder inside it. [onCancel] is null during first-run
  * setup (there is nothing to go back to) and set when changing settings later.
+ * [lockEnabled] is null during setup; in settings it shows the app lock switch, which applies
+ * right away (turning it on asks to unlock first).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +66,8 @@ fun SetupScreen(
     accessLost: Boolean,
     onDone: () -> Unit,
     onCancel: (() -> Unit)?,
+    lockEnabled: Boolean? = null,
+    onLockChange: (Boolean) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -67,7 +78,7 @@ fun SetupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (onCancel == null) "Set up Journal" else "Vault settings") },
+                title = { Text(if (onCancel == null) "Set up Journal" else "Settings") },
                 navigationIcon = {
                     if (onCancel != null) {
                         IconButton(onClick = onCancel) {
@@ -113,6 +124,8 @@ fun SetupScreen(
             ) {
                 Text(if (onCancel == null) "Continue" else "Save")
             }
+
+            if (lockEnabled != null) LockSection(lockEnabled, onLockChange)
         }
     }
 }
@@ -184,6 +197,36 @@ private fun JournalFolderSection(state: SetupUiState, onInputChange: (String) ->
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LockSection(enabled: Boolean, onChange: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    // Checked again on resume: the user may have set a screen lock in the meantime.
+    var deviceSecure by remember { mutableStateOf(isDeviceSecure(context)) }
+    LifecycleResumeEffect(Unit) {
+        deviceSecure = isDeviceSecure(context)
+        onPauseOrDispose {}
+    }
+    SectionCard("App lock") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Unlock with fingerprint, face or the device PIN/pattern whenever you open the app. " +
+                    "New entries can still be written from the widget, shortcuts and sharing.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(12.dp))
+            Switch(
+                checked = enabled,
+                onCheckedChange = onChange,
+                enabled = enabled || deviceSecure,
+            )
+        }
+        if (!enabled && !deviceSecure) {
+            Notice(Icons.Filled.Warning, "Set a screen lock (PIN, pattern or password) in Android's settings first.", isError = true)
         }
     }
 }

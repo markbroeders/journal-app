@@ -11,6 +11,7 @@ import nl.markbroeders.journal.data.JournalRepository
 import nl.markbroeders.journal.data.PhotoImporter
 import nl.markbroeders.journal.data.SettingsStore
 import nl.markbroeders.journal.data.VaultAccess
+import nl.markbroeders.journal.lock.AppLock
 import nl.markbroeders.journal.sync.ScanWorker
 import nl.markbroeders.journal.sync.VaultScanner
 
@@ -35,6 +36,7 @@ class JournalApp : Application(), SingletonImageLoader.Factory {
 /** Manual dependency container; one instance per process. */
 class AppContainer(app: Application) {
     val settings = SettingsStore(app)
+    val lock = AppLock()
     val vaultAccess = VaultAccess(app)
     val journal = JournalRepository(vaultAccess)
     val index = IndexDb.create(app)

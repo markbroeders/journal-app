@@ -2,6 +2,7 @@ package nl.markbroeders.journal.data
 
 import android.content.Context
 import android.net.Uri
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -28,8 +29,16 @@ class SettingsStore(private val context: Context) {
         }
     }
 
+    /** Whether opening the app needs biometrics or the device PIN/pattern (see AppLock). */
+    val appLock: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[APP_LOCK] ?: false }
+
+    suspend fun setAppLock(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[APP_LOCK] = enabled }
+    }
+
     private companion object {
         val VAULT_URI = stringPreferencesKey("vault_uri")
         val JOURNAL_FOLDER = stringPreferencesKey("journal_folder")
+        val APP_LOCK = booleanPreferencesKey("app_lock")
     }
 }

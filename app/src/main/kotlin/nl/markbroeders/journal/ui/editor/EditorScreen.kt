@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -362,30 +363,8 @@ private fun Toolbar(
         IconButton(onClick = onCamera, enabled = !state.addingPhotos) {
             Icon(Icons.Outlined.PhotoCamera, contentDescription = "Take a photo")
         }
-        IconButton(onClick = onStar) {
-            if (state.starred) {
-                Icon(Icons.Rounded.Star, contentDescription = "Unstar day", tint = MaterialTheme.colorScheme.primary)
-            } else {
-                Icon(Icons.Rounded.StarBorder, contentDescription = "Star day")
-            }
-        }
-        IconButton(onClick = onTags) {
-            Icon(
-                Icons.Outlined.Sell,
-                contentDescription = "Day tags",
-                tint = if (state.tags.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
-            )
-        }
-        if (state.tags.isNotEmpty()) {
-            Text(
-                state.tags.joinToString(" ") { "#$it" },
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-        }
+        // A locked quick capture doesn't show (or change) the day's star and tags.
+        if (!state.writeOnly) DayButtons(state, onStar, onTags)
         Spacer(Modifier.weight(1f))
         // Location and weather are kept as they are; editing them comes with those services.
         val info = state.location?.let { Icons.Outlined.Place to it.substringBefore('(').trim() }
@@ -403,6 +382,35 @@ private fun Toolbar(
                 }
             }
         }
+    }
+}
+
+/** The day's star and tags (frontmatter), with the tags listed next to them. */
+@Composable
+private fun RowScope.DayButtons(state: EditorUiState, onStar: () -> Unit, onTags: () -> Unit) {
+    IconButton(onClick = onStar) {
+        if (state.starred) {
+            Icon(Icons.Rounded.Star, contentDescription = "Unstar day", tint = MaterialTheme.colorScheme.primary)
+        } else {
+            Icon(Icons.Rounded.StarBorder, contentDescription = "Star day")
+        }
+    }
+    IconButton(onClick = onTags) {
+        Icon(
+            Icons.Outlined.Sell,
+            contentDescription = "Day tags",
+            tint = if (state.tags.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+        )
+    }
+    if (state.tags.isNotEmpty()) {
+        Text(
+            state.tags.joinToString(" ") { "#$it" },
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
     }
 }
 
