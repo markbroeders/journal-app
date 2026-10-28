@@ -21,6 +21,11 @@ sealed interface AppState {
 /** Decides at startup (and after every settings change) whether the vault is usable. */
 class AppViewModel(private val container: AppContainer) : ViewModel() {
 
+    // Leftover permissions (e.g. a folder picked in settings but not saved) are released once per
+    // start. Not on every evaluation: this flow restarts when the app returns from the folder
+    // picker, and would then release the folder just picked (setup releases the rest on save).
+    private var releasedLeftovers = false
+
     val state: StateFlow<AppState> = container.settings.vault
         .map { settings ->
             val access = container.vaultAccess
@@ -29,7 +34,10 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
                 !access.hasPermission(settings.vaultUri) -> AppState.NeedsSetup(settings)
                 else -> access.root(settings.vaultUri)
                     ?.let { root ->
-                        access.releaseOtherPermissions(settings.vaultUri)
+                        if (!releasedLeftovers) {
+                            releasedLeftovers = true
+                            access.releaseOtherPermissions(settings.vaultUri)
+                        }
                         AppState.Ready(settings, root.name)
                     }
                     ?: AppState.NeedsSetup(settings)

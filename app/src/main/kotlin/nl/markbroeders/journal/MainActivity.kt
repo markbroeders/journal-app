@@ -562,7 +562,10 @@ private fun SetupRoute(
     /** Settings only (not first-run setup): the app lock switch. */
     lock: LockUi? = null,
 ) {
-    val viewModel = viewModel(key = "setup-$session") { SetupViewModel(container, initial) }
+    // Settings and first-run setup never share a SetupViewModel (a saving settings one would block setup).
+    val viewModel = viewModel(key = "setup-${if (lock != null) "settings" else "first"}-$session") {
+        SetupViewModel(container, initial)
+    }
     val reminder by container.settings.reminder.collectAsStateWithLifecycle(initialValue = null)
     val scope = rememberCoroutineScope()
     SetupScreen(
