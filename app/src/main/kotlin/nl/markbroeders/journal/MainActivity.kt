@@ -1,5 +1,6 @@
 package nl.markbroeders.journal
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
@@ -40,6 +41,7 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.LocalDate
 import java.time.LocalTime
+import nl.markbroeders.journal.capture.QuickCapture
 import nl.markbroeders.journal.data.EntryKey
 import nl.markbroeders.journal.data.TimelineDay
 import nl.markbroeders.journal.data.TimelineEntry
@@ -75,18 +77,42 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         val container = (application as JournalApp).container
+        // After a restore the editor (and its draft) is already part of the saved state.
+        if (savedInstanceState == null) capture = QuickCapture.from(intent)
         setContent {
             JournalTheme {
                 Surface(Modifier.fillMaxSize()) {
-                    JournalRoot(container)
+                    JournalRoot(
+                        container,
+                        capture = capture,
+                        onCaptureTaken = { capture = null },
+                        onShareDone = ::finish,
+                    )
                 }
             }
         }
     }
+
+    private var capture by mutableStateOf<QuickCapture?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        QuickCapture.from(intent)?.let { capture = it }
+    }
 }
 
+/**
+ * @param capture a new entry to open right away (share, widget, shortcut); [onCaptureTaken] is
+ *   called once it is open. A shared entry calls [onShareDone] when it closes, to return to the
+ *   app it came from.
+ */
 @Composable
-private fun JournalRoot(container: AppContainer) {
+private fun JournalRoot(
+    container: AppContainer,
+    capture: QuickCapture?,
+    onCaptureTaken: () -> Unit,
+    onShareDone: () -> Unit,
+) {
     val appViewModel = viewModel { AppViewModel(container) }
     val state by appViewModel.state.collectAsStateWithLifecycle()
     var editingSettings by rememberSaveable { mutableStateOf(false) }
@@ -97,6 +123,9 @@ private fun JournalRoot(container: AppContainer) {
     // The editor's target ("new|date|time" or "edit|date|time|ordinal"); each opening is a new session.
     var editorTarget by rememberSaveable { mutableStateOf<String?>(null) }
     var editorSession by rememberSaveable { mutableIntStateOf(0) }
+    // What the open editor was started with by a quick capture (not saved: the editor's draft is).
+    var editorCapture by remember { mutableStateOf<QuickCapture?>(null) }
+    var closeAfterEditor by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf(Tab.Timeline) }
     var showOnThisDay by rememberSaveable { mutableStateOf(false) }
     // Index into the media list of the photo shown full screen.
@@ -141,18 +170,43 @@ private fun JournalRoot(container: AppContainer) {
                     editorSession++
                     editorTarget = "new|$date|${LocalTime.now().withSecond(0).withNano(0)}"
                 }
+                if (capture != null) {
+                    LaunchedEffect(capture) {
+                        openEntryId = null
+                        viewerIndex = null
+                        showOnThisDay = false
+                        editorCapture = capture
+                        closeAfterEditor = capture is QuickCapture.Share
+                        newEntry(LocalDate.now())
+                        onCaptureTaken()
+                    }
+                }
                 val bottomBar = @Composable {
                     JournalNavigationBar(tab, onSelect = { tab = it })
                 }
                 when {
                     editor != null -> {
                         val vm = viewModel(key = "editor-$editorSession") {
-                            EditorViewModel(container, s.settings, editor, createSavedStateHandle())
+                            val shared = editorCapture as? QuickCapture.Share
+                            EditorViewModel(
+                                container, s.settings, editor, createSavedStateHandle(),
+                                initialText = shared?.text.orEmpty(),
+                                initialPhotos = shared?.photos.orEmpty(),
+                            )
                         }
-                        EditorScreen(vm, onClosed = {
-                            editorTarget = null
-                            timeline.refresh()
-                        })
+                        EditorScreen(
+                            vm,
+                            startWithCamera = (editorCapture as? QuickCapture.NewEntry)?.camera == true,
+                            onClosed = {
+                                editorTarget = null
+                                editorCapture = null
+                                timeline.refresh()
+                                if (closeAfterEditor) {
+                                    closeAfterEditor = false
+                                    onShareDone()
+                                }
+                            },
+                        )
                     }
                     viewerIndex != null && !mediaItems.isNullOrEmpty() -> MediaViewer(
                         mediaItems.orEmpty(),

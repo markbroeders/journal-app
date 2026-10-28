@@ -158,10 +158,12 @@ share target). Location and weather last.
 
 ## Next step
 
-MVP is done (steps 1–5), plus calendar, On This Day, the media grid, adding photos, search and
-photos shown at their position in the entry text.
+MVP is done (steps 1–5), plus calendar, On This Day, the media grid, adding photos, search,
+photos shown at their position in the entry text and quick capture (share target, widget,
+app shortcuts).
 
-**Next up:** a share target / home-screen widget for quick capture, then location and weather.
+**Next up:** location and weather (Fused Location Provider + Geocoder, Open-Meteo), filled in
+as `location::` / `weather::` when a new entry is created.
 
 The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
 logic (`NoteEdits`), the rescan diff (`IndexPlan`) and the search syntax (`SearchQuery`) live
@@ -197,6 +199,13 @@ the attachment folder as `YYYY-MM-DD-HHmm-N.jpg` (`Photos.nextName`, never overw
 untimed entry uses the current time) and `Photos.insertEmbeds` puts the embeds at the cursor as
 their own paragraph. Photos added in an editor session but no longer embedded when it closes
 (or all of them on discard) are deleted again.
+
+Quick capture (`capture/`): `QuickCapture.from(intent)` turns a share (`SEND` text/plain or
+image/*, `SEND_MULTIPLE` image/*) or the widget/shortcut actions (`NEW_ENTRY`, `NEW_PHOTO`)
+into a new entry for today. Shared text goes through `SharedText.compose` (a page title + bare
+URL becomes `[title](url)`); shared images are imported like gallery photos. A shared entry
+finishes the activity when it closes, returning to the sharing app. `CaptureWidget` is a
+RemoteViews widget (New entry + camera); `res/xml/shortcuts.xml` has the same two actions.
 
 Search: a Search tab. `entries_fts` is an FTS4 table (unicode61: case- and accent-insensitive)
 over the entries' plain `text` and `location`, kept in step with `entries` by Room's triggers

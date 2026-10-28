@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_entry"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_edit"
+        android:shortcutShortLabel="@string/widget_new_entry">
+        <intent
+            android:action="nl.markbroeders.journal.action.NEW_ENTRY"
+            android:targetClass="nl.markbroeders.journal.MainActivity"
+            android:targetPackage="nl.markbroeders.journal" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="new_photo"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_camera"
+        android:shortcutShortLabel="@string/widget_new_photo">
+        <intent
+            android:action="nl.markbroeders.journal.action.NEW_PHOTO"
+            android:targetClass="nl.markbroeders.journal.MainActivity"
+            android:targetPackage="nl.markbroeders.journal" />
+    </shortcut>
+</shortcuts>

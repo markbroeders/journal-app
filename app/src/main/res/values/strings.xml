@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">Journal</string>
+    <string name="widget_new_entry">New entry</string>
+    <string name="widget_new_photo">New photo entry</string>
+    <string name="widget_description">Write a new entry or take a photo</string>
 </resources>

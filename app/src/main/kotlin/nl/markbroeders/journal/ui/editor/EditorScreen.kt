@@ -90,7 +90,12 @@ import java.time.ZoneOffset
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditorScreen(viewModel: EditorViewModel, onClosed: () -> Unit) {
+fun EditorScreen(
+    viewModel: EditorViewModel,
+    onClosed: () -> Unit,
+    /** Open the camera as soon as the entry is ready (the widget's photo button). */
+    startWithCamera: Boolean = false,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.closed) { if (state.closed) onClosed() }
     BackHandler { viewModel.saveAndClose() }
@@ -112,6 +117,24 @@ fun EditorScreen(viewModel: EditorViewModel, onClosed: () -> Unit) {
             viewModel.addPhotos(listOf(Uri.fromFile(file))) { file.delete() }
         } else {
             file?.delete()
+        }
+    }
+
+    val openCamera = {
+        val file = newCameraFile(context)
+        cameraFile = file.path
+        try {
+            takePhoto.launch(FileProvider.getUriForFile(context, "${context.packageName}.files", file))
+        } catch (_: ActivityNotFoundException) {
+            cameraFile = null
+            Toast.makeText(context, "No camera app found", Toast.LENGTH_SHORT).show()
+        }
+    }
+    var cameraStarted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(state.loading) {
+        if (startWithCamera && !cameraStarted && !state.loading) {
+            cameraStarted = true
+            openCamera()
         }
     }
 
@@ -183,16 +206,7 @@ fun EditorScreen(viewModel: EditorViewModel, onClosed: () -> Unit) {
                 onGallery = {
                     pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 },
-                onCamera = {
-                    val file = newCameraFile(context)
-                    cameraFile = file.path
-                    try {
-                        takePhoto.launch(FileProvider.getUriForFile(context, "${context.packageName}.files", file))
-                    } catch (_: ActivityNotFoundException) {
-                        cameraFile = null
-                        Toast.makeText(context, "No camera app found", Toast.LENGTH_SHORT).show()
-                    }
-                },
+                onCamera = openCamera,
             )
         }
     }

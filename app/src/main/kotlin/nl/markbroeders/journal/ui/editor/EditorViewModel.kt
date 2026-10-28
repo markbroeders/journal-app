@@ -64,12 +64,17 @@ data class EditorUiState(
 /**
  * Edits one entry, or writes a new one. The entry is loaded fresh from the file, and saving
  * merges into the file as it is at that moment (see JournalRepository.save).
+ *
+ * A new entry can start with [initialText] and [initialPhotos] (shared from another app); the
+ * photos are copied into the vault once loaded, like photos added from the gallery.
  */
 class EditorViewModel(
     container: AppContainer,
     private val settings: VaultSettings,
     private val target: EditorTarget,
     private val saved: SavedStateHandle,
+    private val initialText: String = "",
+    private val initialPhotos: List<Uri> = emptyList(),
 ) : ViewModel() {
 
     private val repository = container.journal
@@ -213,6 +218,9 @@ class EditorViewModel(
 
     fun dismissError() = _state.update { it.copy(error = null) }
 
+    private val shareApplied: Boolean
+        get() = target !is EditorTarget.New || saved.get<Boolean>(KEY_SHARE_APPLIED) == true
+
     private fun load(date: LocalDate) {
         loadJob?.cancel()
         _state.update { it.copy(loading = true) }
@@ -227,8 +235,13 @@ class EditorViewModel(
                 originalRaw = entry?.raw.orEmpty()
                 originalFields = entry?.fields.orEmpty()
                 val tags = note.frontmatter?.tags.orEmpty()
-                // An existing entry starts from the file; a new one keeps what was typed (date change).
-                val body = if (entry != null) entry.body else _state.value.body
+                // An existing entry starts from the file; a new one keeps what was typed (date change)
+                // or starts with the shared text.
+                val body = when {
+                    entry != null -> entry.body
+                    !shareApplied -> initialText
+                    else -> _state.value.body
+                }
                 initial = Snapshot(entry?.body.orEmpty(), entry?.mood, note.starred, tags)
                 val restored = saved.get<String>(KEY_BODY) ?: body
                 _state.update {
@@ -244,6 +257,12 @@ class EditorViewModel(
                         location = entry?.location,
                         weather = entry?.weather,
                     )
+                }
+                if (!shareApplied) {
+                    // Once only, also after process death (the draft then holds the result).
+                    saved[KEY_SHARE_APPLIED] = true
+                    if (initialText.isNotEmpty()) saved[KEY_BODY] = _state.value.body
+                    addPhotos(initialPhotos)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -266,5 +285,6 @@ class EditorViewModel(
     private companion object {
         const val TAG = "Editor"
         const val KEY_BODY = "body"
+        const val KEY_SHARE_APPLIED = "shareApplied"
     }
 }
