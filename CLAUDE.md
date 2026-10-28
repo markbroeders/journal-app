@@ -159,7 +159,12 @@ network calls). Existing `location::` / `weather::` fields are still read, shown
 MVP is done (steps 1–5), plus calendar, On This Day, the media grid, adding photos, search,
 quick capture (share target, widget, app shortcuts) and a formatted entry view.
 
-**Next up:** nothing fixed. Candidates: app lock (biometric/PIN), an optional daily reminder.
+**Next up:** app lock (biometric, with the device PIN/pattern as fallback, via BiometricPrompt).
+Quick capture (share, widget, shortcuts) stays usable while locked, but write-only: a locked
+capture shows only the new entry's editor, nothing of existing entries (also not the day's
+star/tags it loads), and closing it leaves the app locked (share returns to the sending app;
+widget/shortcut finish instead of showing the timeline). Also hide content in the recents
+screen (`FLAG_SECURE` or a blank recents snapshot). Possible after that: an optional daily reminder.
 
 The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
 logic (`NoteEdits`), the rescan diff (`IndexPlan`) and the search syntax (`SearchQuery`) live
