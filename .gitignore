@@ -1,10 +1,43 @@
+# Gradle / Kotlin
 .gradle/
 .kotlin/
 build/
-local.properties
-.idea/
-*.iml
-.DS_Store
 captures/
 .externalNativeBuild/
 .cxx/
+
+# Machine-specific config (SDK path etc.)
+local.properties
+
+# Signing: keystores and their passwords never go into the repo
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+app/release/
+app/debug/
+output-metadata.json
+
+# Logs and heap dumps (e.g. from Gradle/emulator OOMs)
+*.log
+*.hprof
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.fleet/
+
+# Claude Code: personal settings (shared .claude/settings.json is fine)
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+*~
