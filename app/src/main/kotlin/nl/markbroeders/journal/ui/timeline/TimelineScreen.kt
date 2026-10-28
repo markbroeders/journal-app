@@ -1,28 +1,25 @@
 package nl.markbroeders.journal.ui.timeline
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material3.Surface
-import nl.markbroeders.journal.data.TimelineDay
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,6 +30,7 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -47,12 +45,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import nl.markbroeders.journal.data.TimelineDay
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.ui.components.EntryRow
+import nl.markbroeders.journal.ui.components.ListHeader
 import nl.markbroeders.journal.ui.components.monthYear
 import nl.markbroeders.journal.ui.theme.LocalJournalColors
 import nl.markbroeders.journal.ui.theme.journalTopBarColors
-import java.time.LocalDate
 import java.time.YearMonth
 
 /** Reverse-chronological feed of entries, from the index. */
@@ -75,6 +74,7 @@ fun TimelineScreen(
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         bottomBar = bottomBar,
+        containerColor = LocalJournalColors.current.ground,
         topBar = {
             LargeTopAppBar(
                 title = { Text("Journal") },
@@ -163,7 +163,7 @@ private fun TimelineList(
             val dayMonth = YearMonth.from(day.date)
             if (dayMonth != month) {
                 month = dayMonth
-                stickyHeader(key = "month-$dayMonth") { MonthHeader(day.date) }
+                stickyHeader(key = "month-$dayMonth") { ListHeader(monthYear(day.date)) }
             }
             day.entries.forEachIndexed { i, entry ->
                 item(key = "entry-${entry.date}-${entry.key.time}-${entry.key.ordinal}") {
@@ -226,19 +226,6 @@ private fun OnThisDayBanner(days: List<TimelineDay>, onClick: () -> Unit) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
         }
     }
-}
-
-@Composable
-private fun MonthHeader(date: LocalDate) {
-    Text(
-        monthYear(date),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    )
 }
 
 @Composable

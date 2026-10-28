@@ -33,12 +33,21 @@ data class TimelineEntry(
     val raw: String,
 ) {
     val mediaCount: Int get() = media.size
+
+    /**
+     * Whether [title] reads as a title (short, not ending like a sentence), as opposed to the start
+     * of a paragraph: lists then show the title in bold and otherwise the text as it runs.
+     */
+    val hasTitle: Boolean
+        get() = title.isNotEmpty() && title.length <= Timeline.TITLE_MAX_CHARS && title.last() !in Timeline.SENTENCE_END
 }
 
 object Timeline {
 
     const val TITLE_LENGTH = 120
     const val PREVIEW_LENGTH = 280
+    const val TITLE_MAX_CHARS = 60
+    internal const val SENTENCE_END = ".!?…,;:"
 
     /**
      * Builds the timeline day for a note stored at [date] (the date from its path, which is

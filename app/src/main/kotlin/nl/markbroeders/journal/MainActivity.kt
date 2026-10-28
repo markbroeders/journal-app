@@ -27,27 +27,26 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import java.time.LocalDate
-import java.time.LocalTime
 import kotlinx.coroutines.launch
 import nl.markbroeders.journal.capture.QuickCapture
 import nl.markbroeders.journal.data.EntryKey
@@ -57,8 +56,12 @@ import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.data.VaultSettings
 import nl.markbroeders.journal.lock.authenticate
 import nl.markbroeders.journal.lock.isDeviceSecure
+import nl.markbroeders.journal.ui.AppState
+import nl.markbroeders.journal.ui.AppViewModel
 import nl.markbroeders.journal.ui.calendar.CalendarScreen
 import nl.markbroeders.journal.ui.calendar.CalendarViewModel
+import nl.markbroeders.journal.ui.components.EntryPhotos
+import nl.markbroeders.journal.ui.components.LocalEntryPhotos
 import nl.markbroeders.journal.ui.editor.EditorScreen
 import nl.markbroeders.journal.ui.editor.EditorTarget
 import nl.markbroeders.journal.ui.editor.EditorViewModel
@@ -69,15 +72,15 @@ import nl.markbroeders.journal.ui.media.MediaViewModel
 import nl.markbroeders.journal.ui.media.MediaViewer
 import nl.markbroeders.journal.ui.onthisday.OnThisDayScreen
 import nl.markbroeders.journal.ui.onthisday.OnThisDayViewModel
-import nl.markbroeders.journal.ui.AppState
-import nl.markbroeders.journal.ui.AppViewModel
 import nl.markbroeders.journal.ui.search.SearchScreen
 import nl.markbroeders.journal.ui.search.SearchViewModel
 import nl.markbroeders.journal.ui.setup.SetupScreen
 import nl.markbroeders.journal.ui.setup.SetupViewModel
+import nl.markbroeders.journal.ui.theme.JournalTheme
 import nl.markbroeders.journal.ui.timeline.TimelineScreen
 import nl.markbroeders.journal.ui.timeline.TimelineViewModel
-import nl.markbroeders.journal.ui.theme.JournalTheme
+import java.time.LocalDate
+import java.time.LocalTime
 
 // A FragmentActivity because BiometricPrompt needs one.
 class MainActivity : FragmentActivity() {
@@ -354,129 +357,132 @@ private fun JournalRoot(
                     val bottomBar = @Composable {
                         JournalNavigationBar(tab, onSelect = { tab = it })
                     }
-                    when {
-                        editor != null -> {
-                            val vm = viewModel(key = "editor-$editorSession") {
-                                val shared = editorCapture as? QuickCapture.Share
-                                EditorViewModel(
-                                    container, s.settings, editor, createSavedStateHandle(),
-                                    initialText = shared?.text.orEmpty(),
-                                    initialPhotos = shared?.photos.orEmpty(),
-                                    writeOnly = writeOnly,
+                    val photos = remember(mediaItems) { EntryPhotos(mediaItems.orEmpty()) }
+                    CompositionLocalProvider(LocalEntryPhotos provides photos) {
+                        when {
+                            editor != null -> {
+                                val vm = viewModel(key = "editor-$editorSession") {
+                                    val shared = editorCapture as? QuickCapture.Share
+                                    EditorViewModel(
+                                        container, s.settings, editor, createSavedStateHandle(),
+                                        initialText = shared?.text.orEmpty(),
+                                        initialPhotos = shared?.photos.orEmpty(),
+                                        writeOnly = writeOnly,
+                                    )
+                                }
+                                EditorScreen(
+                                    vm,
+                                    startWithCamera = (editorCapture as? QuickCapture.NewEntry)?.camera == true,
+                                    onClosed = {
+                                        editorTarget = null
+                                        editorCapture = null
+                                        writeOnly = false
+                                        timeline.refresh()
+                                        if (closeAfterEditor) {
+                                            closeAfterEditor = false
+                                            onFinish()
+                                        }
+                                    },
                                 )
                             }
-                            EditorScreen(
-                                vm,
-                                startWithCamera = (editorCapture as? QuickCapture.NewEntry)?.camera == true,
-                                onClosed = {
-                                    editorTarget = null
-                                    editorCapture = null
-                                    writeOnly = false
-                                    timeline.refresh()
-                                    if (closeAfterEditor) {
-                                        closeAfterEditor = false
-                                        onFinish()
-                                    }
+                            viewerIndex != null && !mediaItems.isNullOrEmpty() -> MediaViewer(
+                                mediaItems.orEmpty(),
+                                initial = viewerIndex ?: 0,
+                                onOpenEntry = {
+                                    openEntryId = "${it.date}|${it.key.time}|${it.key.ordinal}"
+                                    viewerIndex = null
                                 },
+                                onBack = { viewerIndex = null },
                             )
-                        }
-                        viewerIndex != null && !mediaItems.isNullOrEmpty() -> MediaViewer(
-                            mediaItems.orEmpty(),
-                            initial = viewerIndex ?: 0,
-                            onOpenEntry = {
-                                openEntryId = "${it.date}|${it.key.time}|${it.key.ordinal}"
-                                viewerIndex = null
-                            },
-                            onBack = { viewerIndex = null },
-                        )
-                        open != null -> {
-                            val (day, entry) = open
-                            EntryScreen(
-                                day, entry,
-                                deletion = timelineState.deletion,
-                                onBack = { openEntryId = null },
-                                onEdit = {
-                                    editorSession++
-                                    editorTarget = "edit|${entry.date}|${entry.key.time}|${entry.key.ordinal}"
-                                },
-                                onDelete = { deleteFile ->
-                                    timeline.delete(entry, deleteFile, onDeleted = { openEntryId = null })
-                                },
-                                onDismissDeletion = timeline::dismissDeletion,
-                                photos = mediaItems.orEmpty().filter { it.date == entry.date && it.key == entry.key },
-                                onOpenPhoto = { photo ->
-                                    viewerIndex = mediaItems?.indexOf(photo)?.takeIf { it >= 0 }
-                                },
-                                onOpenDate = { date ->
-                                    openEntryId = null
-                                    calendar.select(date)
-                                    tab = Tab.Calendar
-                                },
-                                onTag = { tag ->
-                                    openEntryId = null
-                                    search.setText("")
-                                    search.addTag(tag)
-                                    tab = Tab.Search
-                                },
-                            )
-                        }
-                        showOnThisDay -> OnThisDayScreen(
-                            onThisDay,
-                            onOpenEntry = { openEntryId = entryId(it) },
-                            onBack = { showOnThisDay = false },
-                        )
-                        tab == Tab.Search -> {
-                            BackHandler { tab = Tab.Timeline }
-                            screenStates.SaveableStateProvider("search") {
-                                SearchScreen(
-                                    search,
-                                    onOpenEntry = { openEntryId = entryId(it) },
-                                    bottomBar = bottomBar,
+                            open != null -> {
+                                val (day, entry) = open
+                                EntryScreen(
+                                    day, entry,
+                                    deletion = timelineState.deletion,
+                                    onBack = { openEntryId = null },
+                                    onEdit = {
+                                        editorSession++
+                                        editorTarget = "edit|${entry.date}|${entry.key.time}|${entry.key.ordinal}"
+                                    },
+                                    onDelete = { deleteFile ->
+                                        timeline.delete(entry, deleteFile, onDeleted = { openEntryId = null })
+                                    },
+                                    onDismissDeletion = timeline::dismissDeletion,
+                                    photos = mediaItems.orEmpty().filter { it.date == entry.date && it.key == entry.key },
+                                    onOpenPhoto = { photo ->
+                                        viewerIndex = mediaItems?.indexOf(photo)?.takeIf { it >= 0 }
+                                    },
+                                    onOpenDate = { date ->
+                                        openEntryId = null
+                                        calendar.select(date)
+                                        tab = Tab.Calendar
+                                    },
+                                    onTag = { tag ->
+                                        openEntryId = null
+                                        search.setText("")
+                                        search.addTag(tag)
+                                        tab = Tab.Search
+                                    },
                                 )
                             }
-                        }
-                        tab == Tab.Media -> {
-                            BackHandler { tab = Tab.Timeline }
-                            screenStates.SaveableStateProvider("media") {
-                                MediaScreen(
-                                    media,
-                                    onOpen = { item -> viewerIndex = mediaItems?.indexOf(item)?.takeIf { it >= 0 } },
-                                    bottomBar = bottomBar,
-                                )
-                            }
-                        }
-                        tab == Tab.Calendar -> {
-                            BackHandler { tab = Tab.Timeline }
-                            screenStates.SaveableStateProvider("calendar") {
-                                CalendarScreen(
-                                    calendar,
-                                    onOpenEntry = { openEntryId = entryId(it) },
-                                    onNewEntry = newEntry,
-                                    bottomBar = bottomBar,
-                                )
-                            }
-                        }
-                        // Keeps the scroll position while another screen is open.
-                        else -> screenStates.SaveableStateProvider("timeline") {
-                            val today = LocalDate.now()
-                            val earlier by remember(today) { onThisDay.matches(today) }
-                                .collectAsStateWithLifecycle(emptyList())
-                            TimelineScreen(
-                                timeline,
-                                s.settings.journalFolder,
+                            showOnThisDay -> OnThisDayScreen(
+                                onThisDay,
                                 onOpenEntry = { openEntryId = entryId(it) },
-                                onNewEntry = { newEntry(LocalDate.now()) },
-                                onOpenSettings = {
-                                    setupSession++
-                                    editingSettings = true
-                                },
-                                bottomBar = bottomBar,
-                                onThisDay = earlier,
-                                onOpenOnThisDay = {
-                                    onThisDay.show(today)
-                                    showOnThisDay = true
-                                },
+                                onBack = { showOnThisDay = false },
                             )
+                            tab == Tab.Search -> {
+                                BackHandler { tab = Tab.Timeline }
+                                screenStates.SaveableStateProvider("search") {
+                                    SearchScreen(
+                                        search,
+                                        onOpenEntry = { openEntryId = entryId(it) },
+                                        bottomBar = bottomBar,
+                                    )
+                                }
+                            }
+                            tab == Tab.Media -> {
+                                BackHandler { tab = Tab.Timeline }
+                                screenStates.SaveableStateProvider("media") {
+                                    MediaScreen(
+                                        media,
+                                        onOpen = { item -> viewerIndex = mediaItems?.indexOf(item)?.takeIf { it >= 0 } },
+                                        bottomBar = bottomBar,
+                                    )
+                                }
+                            }
+                            tab == Tab.Calendar -> {
+                                BackHandler { tab = Tab.Timeline }
+                                screenStates.SaveableStateProvider("calendar") {
+                                    CalendarScreen(
+                                        calendar,
+                                        onOpenEntry = { openEntryId = entryId(it) },
+                                        onNewEntry = newEntry,
+                                        bottomBar = bottomBar,
+                                    )
+                                }
+                            }
+                            // Keeps the scroll position while another screen is open.
+                            else -> screenStates.SaveableStateProvider("timeline") {
+                                val today = LocalDate.now()
+                                val earlier by remember(today) { onThisDay.matches(today) }
+                                    .collectAsStateWithLifecycle(emptyList())
+                                TimelineScreen(
+                                    timeline,
+                                    s.settings.journalFolder,
+                                    onOpenEntry = { openEntryId = entryId(it) },
+                                    onNewEntry = { newEntry(LocalDate.now()) },
+                                    onOpenSettings = {
+                                        setupSession++
+                                        editingSettings = true
+                                    },
+                                    bottomBar = bottomBar,
+                                    onThisDay = earlier,
+                                    onOpenOnThisDay = {
+                                        onThisDay.show(today)
+                                        showOnThisDay = true
+                                    },
+                                )
+                            }
                         }
                     }
                 }

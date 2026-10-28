@@ -1,7 +1,6 @@
 package nl.markbroeders.journal.ui.onthisday
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,7 +29,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nl.markbroeders.journal.data.OnThisDay
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.ui.components.EntryRow
+import nl.markbroeders.journal.ui.components.ListHeader
 import nl.markbroeders.journal.ui.components.dayAndMonth
+import nl.markbroeders.journal.ui.theme.LocalJournalColors
 import nl.markbroeders.journal.ui.theme.journalTopBarColors
 import java.time.LocalDate
 
@@ -65,6 +66,7 @@ fun OnThisDayScreen(
                 colors = journalTopBarColors(),
             )
         },
+        containerColor = LocalJournalColors.current.ground,
     ) { padding ->
         LazyColumn(
             Modifier
@@ -110,15 +112,7 @@ fun OnThisDayScreen(
                 }
                 else -> for (day in days) {
                     item(key = "year-${day.date}") {
-                        Text(
-                            "${day.date.year} · ${OnThisDay.yearsAgo(day.date, date)}",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceContainer)
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
+                        ListHeader("${day.date.year} · ${OnThisDay.yearsAgo(day.date, date)}")
                     }
                     day.entries.forEachIndexed { i, entry ->
                         item(key = "entry-${entry.date}-${entry.key.time}-${entry.key.ordinal}") {
@@ -126,7 +120,7 @@ fun OnThisDayScreen(
                                 day, entry,
                                 firstOfDay = i == 0,
                                 lastOfDay = i == day.entries.lastIndex,
-                                dateColumn = false,
+                                dayHeader = false,
                             ) { onOpenEntry(entry) }
                         }
                     }

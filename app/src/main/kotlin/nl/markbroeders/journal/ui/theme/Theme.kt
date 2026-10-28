@@ -64,11 +64,17 @@ private val DarkColors = darkColorScheme(
     outlineVariant = Color(0xFF2C3136),
 )
 
-/** Colours outside the Material scheme: the blue header used on every screen. */
+/**
+ * Colours outside the Material scheme: the blue header used on every screen, and the tinted
+ * [ground] behind lists of [card]s (one card per day).
+ */
 @Immutable
-data class JournalColors(val header: Color, val onHeader: Color)
+data class JournalColors(val header: Color, val onHeader: Color, val ground: Color, val card: Color)
 
-val LocalJournalColors = staticCompositionLocalOf { JournalColors(SkyBlue, Color.White) }
+private val LightJournalColors = JournalColors(SkyBlue, Color.White, ground = Color(0xFFEEF2F5), card = Color.White)
+private val DarkJournalColors = JournalColors(HeaderDark, Color.White, ground = Color(0xFF0C0E10), card = Color(0xFF1A1D20))
+
+val LocalJournalColors = staticCompositionLocalOf { LightJournalColors }
 
 /**
  * Literata for entry text: variable fonts (weight 400–700; optical size fixed at 12 and subset to
@@ -101,7 +107,7 @@ private val JournalTypography = Typography().let { base ->
 
 @Composable
 fun JournalTheme(dark: Boolean = false, serif: Boolean = true, content: @Composable () -> Unit) {
-    val journalColors = if (dark) JournalColors(HeaderDark, Color.White) else JournalColors(SkyBlue, Color.White)
+    val journalColors = if (dark) DarkJournalColors else LightJournalColors
     CompositionLocalProvider(
         LocalJournalColors provides journalColors,
         LocalReadingFont provides if (serif) Literata else null,

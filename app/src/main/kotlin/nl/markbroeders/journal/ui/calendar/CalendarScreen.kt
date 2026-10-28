@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -39,13 +40,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.ui.components.EntryRow
+import nl.markbroeders.journal.ui.components.ListHeader
+import nl.markbroeders.journal.ui.components.LocalEntryPhotos
 import nl.markbroeders.journal.ui.components.longDate
 import nl.markbroeders.journal.ui.components.monthYear
 import nl.markbroeders.journal.ui.theme.LocalJournalColors
@@ -100,6 +107,7 @@ fun CalendarScreen(
             )
         },
         bottomBar = bottomBar,
+        containerColor = LocalJournalColors.current.ground,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { onNewEntry(selected) },
@@ -119,33 +127,30 @@ fun CalendarScreen(
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {
             item(key = "month") {
-                val month = monthOf(pager.currentPage)
-                MonthNavigation(
-                    month,
-                    onPrevious = { scope.launch { pager.animateScrollToPage(pager.currentPage - 1) } },
-                    onNext = { scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
-                    canGoNext = pager.currentPage < pager.pageCount - 1,
-                )
-                WeekdayLabels()
-                HorizontalPager(pager, beyondViewportPageCount = 1, key = { it }) { page ->
-                    val pageMonth = monthOf(page)
-                    val marks by remember(pageMonth) { viewModel.marks(pageMonth) }
-                        .collectAsStateWithLifecycle(emptyMap())
-                    MonthGrid(pageMonth, marks, selected, today, onSelect = viewModel::select)
+                Column(
+                    Modifier
+                        .padding(12.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(LocalJournalColors.current.card)
+                        .padding(bottom = 8.dp),
+                ) {
+                    val month = monthOf(pager.currentPage)
+                    MonthNavigation(
+                        month,
+                        onPrevious = { scope.launch { pager.animateScrollToPage(pager.currentPage - 1) } },
+                        onNext = { scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
+                        canGoNext = pager.currentPage < pager.pageCount - 1,
+                    )
+                    WeekdayLabels()
+                    HorizontalPager(pager, beyondViewportPageCount = 1, key = { it }) { page ->
+                        val pageMonth = monthOf(page)
+                        val marks by remember(pageMonth) { viewModel.marks(pageMonth) }
+                            .collectAsStateWithLifecycle(emptyMap())
+                        MonthGrid(pageMonth, marks, selected, today, onSelect = viewModel::select)
+                    }
                 }
             }
-            item(key = "day-header") {
-                Text(
-                    longDate(selected, today),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainer)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
+            item(key = "day-header") { ListHeader(longDate(selected, today)) }
             // Nothing until the selected day has loaded, so switching days doesn't flash "no entries".
             val current = selectedDay?.takeIf { it.date == selected }
             val day = current?.day
@@ -172,7 +177,7 @@ fun CalendarScreen(
                             day, entry,
                             firstOfDay = i == 0,
                             lastOfDay = i == day.entries.lastIndex,
-                            dateColumn = false,
+                            dayHeader = false,
                         ) { onOpenEntry(entry) }
                     }
                 }
@@ -258,35 +263,56 @@ private fun MonthGrid(
 }
 
 /**
- * A day number in a circle: light blue when the day has entries, solid header blue when
- * selected, and a blue ring for today.
+ * A day number in a circle: the day's first photo (dimmed behind the number) or light blue when
+ * the day has entries, solid header blue when selected (a ring around a photo), and a blue ring
+ * for today.
  */
 @Composable
 private fun DayCell(date: LocalDate, mark: DayMark?, selected: Boolean, today: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val header = LocalJournalColors.current
+    val photo = if (mark != null) LocalEntryPhotos.current.forDay(date) else null
     val (background, content) = when {
+        photo != null -> Color.Black to Color.White
         selected -> header.header to header.onHeader
         mark != null -> colors.primaryContainer to colors.onPrimaryContainer
-        today -> colors.surface to colors.primary
-        else -> colors.surface to colors.onSurface
+        today -> Color.Transparent to colors.primary
+        else -> Color.Transparent to colors.onSurface
     }
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Box(
-            Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(background)
-                .then(if (today && !selected) Modifier.border(1.5.dp, colors.primary, CircleShape) else Modifier)
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                "${date.dayOfMonth}",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (mark != null || today || selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = content,
+    val ring = when {
+        photo != null && selected -> Modifier.border(2.5.dp, header.header, CircleShape).padding(4.dp)
+        photo != null && today -> Modifier.border(1.5.dp, colors.primary, CircleShape).padding(3.dp)
+        today && !selected -> Modifier.border(1.5.dp, colors.primary, CircleShape)
+        else -> Modifier
+    }
+    Box(
+        Modifier
+            .size(42.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .then(ring)
+            .clip(CircleShape)
+            .background(background),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (photo != null) {
+            AsyncImage(
+                model = photo.uri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)))
         }
+        Text(
+            "${date.dayOfMonth}",
+            style = if (photo != null) {
+                MaterialTheme.typography.bodyLarge.copy(shadow = Shadow(Color.Black.copy(alpha = 0.6f), blurRadius = 4f))
+            } else {
+                MaterialTheme.typography.bodyLarge
+            },
+            fontWeight = if (mark != null || today || selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = content,
+        )
     }
 }

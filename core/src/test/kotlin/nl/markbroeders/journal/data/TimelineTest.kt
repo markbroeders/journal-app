@@ -4,6 +4,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -52,6 +53,16 @@ class TimelineTest {
         val empty = Timeline.day(DailyNoteParser.parse("## 09:00\n"), LocalDate.of(2026, 1, 1))!!.entries.single()
         assertEquals("", empty.title)
         assertEquals("", empty.preview)
+    }
+
+    @Test
+    fun `short first lines without a sentence end read as titles`() {
+        fun entry(title: String) = day("2024/2024-07-02.md")!!.entries[0].copy(title = title)
+        assertTrue(entry("Ridge walk").hasTitle)
+        assertTrue(entry("Day 3: Lisbon").hasTitle)
+        assertFalse(entry("Long meeting that could have been an email.").hasTitle)
+        assertFalse(entry("Woke up before the alarm for once and had coffee on the balcony while it was quiet").hasTitle)
+        assertFalse(entry("").hasTitle)
     }
 
     @Test

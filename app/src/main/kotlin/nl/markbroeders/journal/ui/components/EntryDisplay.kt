@@ -47,9 +47,15 @@ private fun locale(): Locale = Locale.getDefault()
 
 private fun String.capitalized(): String = replaceFirstChar { it.titlecase(locale()) }
 
-/** `MON` / `MA` style weekday for the timeline's date column. */
-fun weekdayShort(date: LocalDate): String = date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale())
-    .trimEnd('.').uppercase(locale())
+/** `Wednesday` for a day card's header, with Today / Yesterday where they apply. */
+fun weekdayLong(date: LocalDate, today: LocalDate = LocalDate.now()): String {
+    val weekday = date.dayOfWeek.getDisplayName(TextStyle.FULL, locale()).capitalized()
+    return when (date) {
+        today -> "$weekday · Today"
+        today.minusDays(1) -> "$weekday · Yesterday"
+        else -> weekday
+    }
+}
 
 /** `October 2026` month header. */
 fun monthYear(date: LocalDate): String =

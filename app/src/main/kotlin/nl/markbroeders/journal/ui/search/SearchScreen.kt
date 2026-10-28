@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nl.markbroeders.journal.data.SearchSql
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.ui.components.EntryRow
+import nl.markbroeders.journal.ui.components.ListHeader
 import nl.markbroeders.journal.ui.components.longDate
 import nl.markbroeders.journal.ui.theme.LocalJournalColors
 import nl.markbroeders.journal.ui.theme.journalTopBarColors
@@ -85,6 +86,7 @@ fun SearchScreen(
             )
         },
         bottomBar = bottomBar,
+        containerColor = LocalJournalColors.current.ground,
     ) { padding ->
         LazyColumn(
             Modifier
@@ -99,7 +101,7 @@ fun SearchScreen(
                     if (tags.isEmpty()) {
                         item(key = "hint") { Message("Search for words, \"phrases\" and #tags.") }
                     } else {
-                        item(key = "tags-header") { SectionHeader("Tags") }
+                        item(key = "tags-header") { ListHeader("Tags") }
                         item(key = "tags") {
                             FlowRow(
                                 Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -136,14 +138,14 @@ fun SearchScreen(
                         )
                     }
                     for ((day, snippets) in current.days) {
-                        item(key = "day-${day.date}-${day.entries.first().key}") { SectionHeader(longDate(day.date)) }
+                        item(key = "day-${day.date}-${day.entries.first().key}") { ListHeader(longDate(day.date)) }
                         day.entries.forEachIndexed { i, entry ->
                             item(key = "entry-${entry.date}-${entry.key.time}-${entry.key.ordinal}") {
                                 EntryRow(
                                     day, entry,
                                     firstOfDay = i == 0,
                                     lastOfDay = i == day.entries.lastIndex,
-                                    dateColumn = false,
+                                    dayHeader = false,
                                     preview = snippets[i]?.let { highlighted(it, entry.title) },
                                 ) {
                                     keyboard?.hide()
@@ -201,19 +203,6 @@ private fun SearchField(text: String, onChange: (String) -> Unit, focus: FocusRe
             .fillMaxWidth()
             .padding(end = 8.dp)
             .focusRequester(focus),
-    )
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
 
