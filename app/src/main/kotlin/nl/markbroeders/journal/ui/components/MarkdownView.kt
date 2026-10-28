@@ -56,6 +56,7 @@ import nl.markbroeders.journal.data.MdBlock
 import nl.markbroeders.journal.data.MdInline
 import nl.markbroeders.journal.data.MdListItem
 import nl.markbroeders.journal.ui.media.MediaEntry
+import nl.markbroeders.journal.ui.theme.reading
 import java.time.LocalDate
 
 /**
@@ -86,7 +87,7 @@ fun MarkdownView(
         onOpenDate = onOpenDate,
         onTag = onTag,
     )
-    Blocks(blocks, env, MaterialTheme.typography.bodyLarge, modifier, spacing = 14)
+    Blocks(blocks, env, MaterialTheme.typography.bodyLarge.reading(), modifier, spacing = 14)
 }
 
 private data class MdColors(val link: Color, val muted: Color, val codeBackground: Color, val rule: Color)
@@ -152,7 +153,7 @@ private fun headingStyle(level: Int): TextStyle {
         3 -> t.titleMedium.copy(fontSize = t.titleLarge.fontSize * 0.9f)
         else -> t.titleMedium
     }
-    return base.copy(fontWeight = FontWeight.SemiBold)
+    return base.reading().copy(fontWeight = FontWeight.SemiBold)
 }
 
 /** A paragraph: text, with photos and videos as their own blocks where they are embedded. */
@@ -342,7 +343,7 @@ private fun Table(table: MdBlock.Table, env: MdEnv, style: TextStyle) {
     ) {
         Layout(
             content = {
-                val cellStyle = MaterialTheme.typography.bodyMedium
+                val cellStyle = MaterialTheme.typography.bodyMedium.reading()
                 table.header.forEach { cell ->
                     Box(Modifier.background(env.colors.codeBackground).padding(horizontal = 10.dp, vertical = 8.dp)) {
                         InlineText(cell, env, cellStyle.copy(fontWeight = FontWeight.SemiBold))

@@ -79,6 +79,7 @@ import nl.markbroeders.journal.ui.components.longDate
 import nl.markbroeders.journal.ui.components.moodEmoji
 import nl.markbroeders.journal.ui.components.weatherIcon
 import nl.markbroeders.journal.ui.theme.journalTopBarColors
+import nl.markbroeders.journal.ui.theme.reading
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -297,7 +298,7 @@ private fun BodyField(
             value = it
             onChange(it.text, it.selection.end)
         },
-        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+        textStyle = MaterialTheme.typography.bodyLarge.reading().copy(color = MaterialTheme.colorScheme.onSurface),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
         modifier = modifier
@@ -309,7 +310,7 @@ private fun BodyField(
                 if (text.isEmpty()) {
                     Text(
                         "Start writing…",
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyLarge.reading(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

@@ -10,6 +10,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
@@ -50,6 +51,7 @@ import java.time.LocalTime
 import kotlinx.coroutines.launch
 import nl.markbroeders.journal.capture.QuickCapture
 import nl.markbroeders.journal.data.EntryKey
+import nl.markbroeders.journal.data.ThemeMode
 import nl.markbroeders.journal.data.TimelineDay
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.data.VaultSettings
@@ -89,12 +91,6 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Blue header: light status bar icons. Light theme: dark navigation bar icons,
-        // whatever the system dark mode setting is.
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-        )
         container = (application as JournalApp).container
         // While the lock is on, the recents screen shows no content.
         lifecycleScope.launch { container.settings.appLock.collect(::hideFromRecents) }
@@ -105,10 +101,29 @@ class MainActivity : FragmentActivity() {
             val lockEnabled by container.settings.appLock.collectAsState(initial = null)
             val unlocked by container.lock.unlocked.collectAsState()
             val promptRequest by container.lock.promptRequests.collectAsState()
-            JournalTheme {
+            val appearance by container.settings.appearance.collectAsState(initial = null)
+            val dark = when (appearance?.theme) {
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+                ThemeMode.SYSTEM, null -> isSystemInDarkTheme()
+            }
+            LaunchedEffect(dark) {
+                // Blue header in both themes: light status bar icons. Navigation bar icons follow the theme,
+                // not the system setting.
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+                    navigationBarStyle = if (dark) {
+                        SystemBarStyle.dark(Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                    },
+                )
+            }
+            JournalTheme(dark = dark, serif = appearance?.serif ?: true) {
                 Surface(Modifier.fillMaxSize()) {
-                    // Nothing is shown until it's known whether the app is locked.
+                    // Nothing is shown until it's known whether the app is locked (and how it looks).
                     val enabled = lockEnabled ?: return@Surface
+                    if (appearance == null) return@Surface
                     JournalRoot(
                         container,
                         capture = capture,
@@ -567,6 +582,7 @@ private fun SetupRoute(
         SetupViewModel(container, initial)
     }
     val reminder by container.settings.reminder.collectAsStateWithLifecycle(initialValue = null)
+    val appearance by container.settings.appearance.collectAsStateWithLifecycle(initialValue = null)
     val scope = rememberCoroutineScope()
     SetupScreen(
         viewModel,
@@ -578,5 +594,7 @@ private fun SetupRoute(
         // Like the lock, only in settings, not during first-run setup.
         reminder = reminder.takeIf { lock != null },
         onReminderChange = { scope.launch { container.settings.setReminder(it) } },
+        appearance = appearance.takeIf { lock != null },
+        onAppearanceChange = { scope.launch { container.settings.setAppearance(it) } },
     )
 }

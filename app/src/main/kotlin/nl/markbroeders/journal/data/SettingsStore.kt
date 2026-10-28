@@ -17,6 +17,11 @@ data class VaultSettings(val vaultUri: Uri, val journalFolder: String)
 /** The daily reminder: a notification at [time] on days without an entry yet. */
 data class ReminderSettings(val enabled: Boolean, val time: LocalTime)
 
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/** [serif]: entry text (the entry view and the editor) in the serif reading font. */
+data class Appearance(val theme: ThemeMode = ThemeMode.SYSTEM, val serif: Boolean = true)
+
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
 class SettingsStore(private val context: Context) {
@@ -55,11 +60,27 @@ class SettingsStore(private val context: Context) {
         }
     }
 
+    val appearance: Flow<Appearance> = context.dataStore.data.map { prefs ->
+        Appearance(
+            theme = prefs[THEME]?.let { name -> ThemeMode.entries.find { it.name == name } } ?: ThemeMode.SYSTEM,
+            serif = prefs[SERIF] ?: true,
+        )
+    }
+
+    suspend fun setAppearance(appearance: Appearance) {
+        context.dataStore.edit { prefs ->
+            prefs[THEME] = appearance.theme.name
+            prefs[SERIF] = appearance.serif
+        }
+    }
+
     private companion object {
         val VAULT_URI = stringPreferencesKey("vault_uri")
         val JOURNAL_FOLDER = stringPreferencesKey("journal_folder")
         val APP_LOCK = booleanPreferencesKey("app_lock")
         val REMINDER = booleanPreferencesKey("reminder")
         val REMINDER_MINUTE = intPreferencesKey("reminder_minute")
+        val THEME = stringPreferencesKey("theme")
+        val SERIF = booleanPreferencesKey("serif")
     }
 }

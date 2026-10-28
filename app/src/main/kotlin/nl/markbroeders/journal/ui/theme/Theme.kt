@@ -12,8 +12,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import nl.markbroeders.journal.R
 
 // One fixed journal blue instead of wallpaper-based dynamic colour, so the app has its own look.
 // A light sky blue for the header, and a deeper shade of it for blue text on white (readability).
@@ -64,6 +70,27 @@ data class JournalColors(val header: Color, val onHeader: Color)
 
 val LocalJournalColors = staticCompositionLocalOf { JournalColors(SkyBlue, Color.White) }
 
+/**
+ * Literata for entry text: variable fonts (weight 400–700; optical size fixed at 12 and subset to
+ * Latin to keep them small), one face per weight used.
+ */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+private val Literata = FontFamily(
+    listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold).flatMap { weight ->
+        listOf(
+            Font(R.font.literata, weight, FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight))),
+            Font(R.font.literata_italic, weight, FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight))),
+        )
+    },
+)
+
+/** The font family for entry text (entry view and editor): Literata, or the UI font when off. */
+val LocalReadingFont = staticCompositionLocalOf<FontFamily?> { null }
+
+/** [this] style in the reading font. */
+@Composable
+fun TextStyle.reading(): TextStyle = LocalReadingFont.current?.let { copy(fontFamily = it) } ?: this
+
 private val JournalTypography = Typography().let { base ->
     base.copy(
         titleMedium = base.titleMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = 17.sp),
@@ -72,11 +99,13 @@ private val JournalTypography = Typography().let { base ->
     )
 }
 
-/** Always light for now; the dark palette is kept for a later theme setting. */
 @Composable
-fun JournalTheme(dark: Boolean = false, content: @Composable () -> Unit) {
+fun JournalTheme(dark: Boolean = false, serif: Boolean = true, content: @Composable () -> Unit) {
     val journalColors = if (dark) JournalColors(HeaderDark, Color.White) else JournalColors(SkyBlue, Color.White)
-    CompositionLocalProvider(LocalJournalColors provides journalColors) {
+    CompositionLocalProvider(
+        LocalJournalColors provides journalColors,
+        LocalReadingFont provides if (serif) Literata else null,
+    ) {
         MaterialTheme(
             colorScheme = if (dark) DarkColors else LightColors,
             typography = JournalTypography,

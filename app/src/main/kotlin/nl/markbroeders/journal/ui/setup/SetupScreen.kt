@@ -38,6 +38,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,7 +61,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import nl.markbroeders.journal.data.Appearance
 import nl.markbroeders.journal.data.ReminderSettings
+import nl.markbroeders.journal.data.ThemeMode
 import nl.markbroeders.journal.data.VaultPaths
 import nl.markbroeders.journal.lock.isDeviceSecure
 import nl.markbroeders.journal.reminder.DailyReminder
@@ -71,7 +76,7 @@ import java.time.format.DateTimeFormatter
  * setup (there is nothing to go back to) and set when changing settings later.
  * [lockEnabled] is null during setup; in settings it shows the app lock switch, which applies
  * right away (turning it on asks to unlock first). [reminder] likewise shows the daily reminder's
- * settings, also applied right away.
+ * settings, and [appearance] the theme and reading font, also applied right away.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +89,8 @@ fun SetupScreen(
     onLockChange: (Boolean) -> Unit = {},
     reminder: ReminderSettings? = null,
     onReminderChange: (ReminderSettings) -> Unit = {},
+    appearance: Appearance? = null,
+    onAppearanceChange: (Appearance) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -141,6 +148,7 @@ fun SetupScreen(
                 Text(if (onCancel == null) "Continue" else "Save")
             }
 
+            if (appearance != null) AppearanceSection(appearance, onAppearanceChange)
             if (lockEnabled != null) LockSection(lockEnabled, onLockChange)
             if (reminder != null) ReminderSection(reminder, onReminderChange)
         }
@@ -214,6 +222,37 @@ private fun JournalFolderSection(state: SetupUiState, onInputChange: (String) ->
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AppearanceSection(appearance: Appearance, onChange: (Appearance) -> Unit) {
+    SectionCard("Appearance") {
+        Text("Theme", style = MaterialTheme.typography.bodyMedium)
+        Choice(
+            options = listOf(ThemeMode.SYSTEM to "System", ThemeMode.LIGHT to "Light", ThemeMode.DARK to "Dark"),
+            selected = appearance.theme,
+            onSelect = { onChange(appearance.copy(theme = it)) },
+        )
+        Text("Font for entries", style = MaterialTheme.typography.bodyMedium)
+        Choice(
+            options = listOf(true to "Serif", false to "Sans serif"),
+            selected = appearance.serif,
+            onSelect = { onChange(appearance.copy(serif = it)) },
+        )
+    }
+}
+
+@Composable
+private fun <T> Choice(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, (value, label) ->
+            SegmentedButton(
+                selected = value == selected,
+                onClick = { onSelect(value) },
+                shape = SegmentedButtonDefaults.itemShape(index, options.size),
+            ) { Text(label) }
         }
     }
 }
