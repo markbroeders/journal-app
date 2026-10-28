@@ -158,11 +158,10 @@ share target). Location and weather last.
 
 ## Next step
 
-MVP is done (steps 1–5), plus calendar, On This Day, the media grid, adding photos and search.
+MVP is done (steps 1–5), plus calendar, On This Day, the media grid, adding photos, search and
+photos shown at their position in the entry text.
 
-**Next up:** photos at their position inside the entry text (the entry screen now shows them all
-below the text). Possible after that: a share target / home-screen widget for quick capture, then
-location and weather.
+**Next up:** a share target / home-screen widget for quick capture, then location and weather.
 
 The parser/writer, `VaultPaths`, the timeline model (`Timeline`, `PlainText`), the save/merge
 logic (`NoteEdits`), the rescan diff (`IndexPlan`) and the search syntax (`SearchQuery`) live
@@ -188,7 +187,10 @@ attachment folder from `.obsidian/app.json` (`ObsidianConfig`, `AttachmentScanne
 vault root, `Attachments` and the year folders into `attachments`, and the grid joins the two
 by name (case-insensitive), like Obsidian resolves `![[name.jpg]]`. Thumbnails via Coil
 (video frames via coil-video); a full-screen pager viewer links to the entry, videos open in
-another app. The entry screen shows an entry's photos full width below its text.
+another app. The entry screen shows an entry's photos full width where the text embeds them:
+`Timeline` cuts the body at each media embed (`Markdown.embedSpans`, skipping code and comments)
+and stores each embed's offset in the plain text (`mediaOffsets`); `TimelineEntry.blocks()` gives
+text and media in reading order. An embed mid-paragraph splits it; unresolved embeds are skipped.
 Adding photos: the editor's gallery (system photo picker) and camera (TakePicture via a
 FileProvider cache file) buttons; `PhotoImporter` writes upright JPEGs (long edge ≤ 2560) into
 the attachment folder as `YYYY-MM-DD-HHmm-N.jpg` (`Photos.nextName`, never overwriting; the

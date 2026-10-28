@@ -84,6 +84,61 @@ class TimelineTest {
             assertEquals(note.entries.isEmpty(), day(path) == null, path)
         }
     }
+
+    private fun entry(body: String) =
+        Timeline.day(DailyNoteParser.parse("## 09:00\n$body"), LocalDate.of(2026, 1, 1))!!.entries.single()
+
+    @Test
+    fun `photos are placed where the text embeds them`() {
+        val e = entry("Before.\n\n![[a.jpg]]\n\nMiddle.\n![[b.jpg]]\n\n![](c%20d.png)\n\nAfter.\n")
+        assertEquals("Before.\n\nMiddle.\n\nAfter.", e.text)
+        assertEquals(listOf("a.jpg", "b.jpg", "c%20d.png"), e.media)
+        assertEquals(
+            listOf(
+                EntryBlock.Text("Before."),
+                EntryBlock.Media(0, "a.jpg"),
+                EntryBlock.Text("Middle."),
+                EntryBlock.Media(1, "b.jpg"),
+                EntryBlock.Media(2, "c%20d.png"),
+                EntryBlock.Text("After."),
+            ),
+            e.blocks(),
+        )
+    }
+
+    @Test
+    fun `a photo first, last or alone`() {
+        assertEquals(
+            listOf(EntryBlock.Media(0, "a.jpg"), EntryBlock.Text("Text."), EntryBlock.Media(1, "b.jpg")),
+            entry("![[a.jpg]]\nText.\n\n![[b.jpg]]\n").blocks(),
+        )
+        val alone = entry("![[a.jpg|300]]\n")
+        assertEquals("", alone.text)
+        assertEquals(listOf(EntryBlock.Media(0, "a.jpg")), alone.blocks())
+    }
+
+    @Test
+    fun `an embed inside a paragraph splits it`() {
+        assertEquals(
+            listOf(EntryBlock.Text("See"), EntryBlock.Media(0, "a.jpg"), EntryBlock.Text("here.")),
+            entry("See ![[a.jpg]] here.\n").blocks(),
+        )
+    }
+
+    @Test
+    fun `embeds in code or comments and links to notes are not photos`() {
+        val e = entry("![[Other note]]\n\n`![[x.jpg]]`\n\n```\n![[y.jpg]]\n```\n\n%% ![[z.jpg]] %%\n\nEnd ![[ok.jpg]]\n")
+        assertEquals(listOf("ok.jpg"), e.media)
+        val blocks = e.blocks()
+        assertEquals(EntryBlock.Media(0, "ok.jpg"), blocks.last())
+        assertTrue((blocks[blocks.size - 2] as EntryBlock.Text).text.endsWith("End"))
+    }
+
+    @Test
+    fun `without embeds the text is unchanged`() {
+        val d = day("2024/2024-03-14.md")!!.entries.single()
+        assertEquals(listOf(EntryBlock.Text(d.text)), d.blocks())
+    }
 }
 
 class PlainTextTest {

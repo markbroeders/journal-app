@@ -74,6 +74,8 @@ data class EntryRow(
     val tags: List<String>,
     /** Media embed targets, in order (see [MediaRow] for lookups). */
     val media: List<String>,
+    /** Where each media embed sits in [text] ([TimelineEntry.mediaOffsets]). */
+    val mediaOffsets: List<Int>,
     val raw: String,
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
 )
@@ -305,6 +307,10 @@ class IndexConverters {
     @TypeConverter fun tagsToString(tags: List<String>?): String? = tags?.joinToString("\n")
     @TypeConverter fun stringToTags(value: String?): List<String>? =
         value?.let { if (it.isEmpty()) emptyList() else it.split('\n') }
+
+    @TypeConverter fun intsToString(ints: List<Int>?): String? = ints?.joinToString(",")
+    @TypeConverter fun stringToInts(value: String?): List<Int>? =
+        value?.let { if (it.isEmpty()) emptyList() else it.split(',').map(String::toInt) }
 }
 
 /**
@@ -316,7 +322,7 @@ class IndexConverters {
     entities = [
         NoteRow::class, EntryRow::class, EntryFts::class, MediaRow::class, AttachmentRow::class, MetaRow::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(IndexConverters::class)
@@ -336,7 +342,7 @@ fun TimelineDay.toRows(documentId: String, lastModified: Long, size: Long): Pair
     val rows = entries.mapIndexed { i, e ->
         EntryRow(
             documentId, i, e.date, e.key.time, e.key.ordinal, e.title, e.preview, e.text,
-            e.location, e.weather, e.mood, e.tags, e.media, e.raw,
+            e.location, e.weather, e.mood, e.tags, e.media, e.mediaOffsets, e.raw,
         )
     }
     return note to rows
@@ -365,6 +371,7 @@ fun EntryRow.toTimelineEntry(): TimelineEntry = TimelineEntry(
     mood = mood,
     tags = tags,
     media = media,
+    mediaOffsets = mediaOffsets,
     raw = raw,
 )
 

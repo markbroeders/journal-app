@@ -58,6 +58,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import nl.markbroeders.journal.data.Embeds
+import nl.markbroeders.journal.data.EntryBlock
 import nl.markbroeders.journal.data.TimelineDay
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.ui.components.longDate
@@ -78,7 +80,7 @@ fun EntryScreen(
     onEdit: () -> Unit,
     onDelete: (deleteBlankFile: Boolean?) -> Unit,
     onDismissDeletion: () -> Unit,
-    /** The entry's photos and videos that resolve to a file, in order. */
+    /** The entry's photos and videos that resolve to a file; placed where the text embeds them. */
     photos: List<MediaEntry> = emptyList(),
     onOpenPhoto: (MediaEntry) -> Unit = {},
 ) {
@@ -160,20 +162,28 @@ fun EntryScreen(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(Modifier.height(20.dp))
 
-            if (entry.text.isNotEmpty()) {
-                SelectionContainer {
-                    Text(entry.text, style = MaterialTheme.typography.bodyLarge)
+            // Text and photos in the order they appear in the note.
+            val blocks = remember(entry) { entry.blocks() }
+            val byName = remember(photos) { photos.associateBy { it.fileName.lowercase() } }
+            val shown = blocks.mapNotNull { block ->
+                when (block) {
+                    is EntryBlock.Text -> block
+                    // Embeds that don't resolve to a file are left out, as in the media grid.
+                    is EntryBlock.Media -> Embeds.fileName(block.target)?.let { byName[it.lowercase()] }
                 }
             }
-            if (photos.isNotEmpty()) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(top = if (entry.text.isNotEmpty()) 20.dp else 0.dp),
-                ) {
-                    photos.forEach { photo -> Photo(photo) { onOpenPhoto(photo) } }
+            if (shown.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    shown.forEach { item ->
+                        when (item) {
+                            is EntryBlock.Text -> SelectionContainer {
+                                Text(item.text, style = MaterialTheme.typography.bodyLarge)
+                            }
+                            is MediaEntry -> Photo(item) { onOpenPhoto(item) }
+                        }
+                    }
                 }
-            }
-            if (entry.text.isEmpty() && photos.isEmpty()) {
+            } else {
                 Text(
                     "No text.",
                     style = MaterialTheme.typography.bodyLarge,

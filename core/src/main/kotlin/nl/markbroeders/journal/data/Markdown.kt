@@ -83,18 +83,35 @@ internal object Markdown {
     private val WIKI_EMBED = Regex("""!\[\[([^\]|#^]+)[^\]]*]]""")
     private val MD_EMBED = Regex("""!\[[^\]]*]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)""")
 
-    fun embeds(text: String): List<String> {
+    private val COMMENT = Regex("""%%[\s\S]*?%%|<!--[\s\S]*?-->""")
+
+    /** An embed: where it is in the text and what it points at. */
+    data class Embed(val range: IntRange, val target: String)
+
+    /**
+     * Embeds in [text] outside code and comments (Obsidian doesn't render those), in order.
+     * The ranges index into [text].
+     */
+    fun embedSpans(text: String): List<Embed> {
+        // Blank out comments and inline code without changing offsets.
+        val masked = text.replace(COMMENT) { m -> m.value.replace(Regex("[^\n]"), " ") }
         val fence = FenceTracker()
-        val result = mutableListOf<String>()
-        for (line in splitLines(text)) {
+        val result = mutableListOf<Embed>()
+        var offset = 0
+        for (line in splitLines(masked)) {
+            val start = offset
+            offset += line.length
             if (fence.accept(line)) continue
-            val stripped = line.replace(INLINE_CODE, " ")
-            val found = WIKI_EMBED.findAll(stripped).map { it.range.first to it.groupValues[1].trim() } +
-                MD_EMBED.findAll(stripped).map { it.range.first to it.groupValues[1] }
-            result += found.sortedBy { it.first }.map { it.second }
+            val stripped = line.replace(INLINE_CODE) { m -> " ".repeat(m.value.length) }
+            val found = WIKI_EMBED.findAll(stripped).map { it.range to it.groupValues[1].trim() } +
+                MD_EMBED.findAll(stripped).map { it.range to it.groupValues[1] }
+            result += found.sortedBy { it.first.first }
+                .map { (range, target) -> Embed((range.first + start)..(range.last + start), target) }
         }
         return result
     }
+
+    fun embeds(text: String): List<String> = embedSpans(text).map { it.target }
 
     private val MEDIA_EXTENSIONS = setOf(
         "jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "avif", "bmp", "svg",
