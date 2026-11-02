@@ -547,13 +547,14 @@ private fun Toolbar(
         IconButton(onClick = onCamera, enabled = !state.addingPhotos) {
             Icon(Icons.Outlined.PhotoCamera, contentDescription = "Take a photo", tint = muted)
         }
-        // A locked quick capture doesn't show (or change) the day's star and tags.
-        if (!state.writeOnly) DayButtons(state, onStar, onTags)
         if (onExpand != null) {
             IconButton(onClick = onExpand) {
                 Icon(Icons.Outlined.OpenInFull, contentDescription = "Full screen", tint = muted)
             }
         }
+        // A locked quick capture doesn't show (or change) the day's star and tags. The sheet has no
+        // room for the tags' text; its tag button is blue when there are tags.
+        if (!state.writeOnly) DayButtons(state, onStar, onTags, showTags = onExpand == null)
         Spacer(Modifier.weight(1f))
         // Location and weather are kept as they are, and shown when editing full screen.
         val info = state.location?.let { Icons.Outlined.Place to it.substringBefore('(').trim() }
@@ -570,9 +571,9 @@ private fun Toolbar(
     }
 }
 
-/** The day's star and tags (frontmatter), with the tags listed next to them. */
+/** The day's star and tags (frontmatter), with the tags listed next to them if [showTags]. */
 @Composable
-private fun RowScope.DayButtons(state: EditorUiState, onStar: () -> Unit, onTags: () -> Unit) {
+private fun RowScope.DayButtons(state: EditorUiState, onStar: () -> Unit, onTags: () -> Unit, showTags: Boolean) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     IconButton(onClick = onStar) {
         if (state.starred) {
@@ -588,7 +589,7 @@ private fun RowScope.DayButtons(state: EditorUiState, onStar: () -> Unit, onTags
             tint = if (state.tags.isEmpty()) muted else MaterialTheme.colorScheme.primary,
         )
     }
-    if (state.tags.isNotEmpty()) {
+    if (showTags && state.tags.isNotEmpty()) {
         Text(
             state.tags.joinToString(" ") { "#$it" },
             style = MaterialTheme.typography.labelMedium,
