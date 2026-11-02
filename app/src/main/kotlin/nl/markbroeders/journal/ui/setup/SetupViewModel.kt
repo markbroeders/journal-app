@@ -42,7 +42,17 @@ data class SetupUiState(
     val journalInput: String = VaultPaths.DEFAULT_JOURNAL_FOLDER,
     val journalCheck: JournalCheck = JournalCheck.Pending,
     val saving: Boolean = false,
+    /** The vault and journal folder in use (settings), to tell whether they were changed. */
+    val savedVaultUri: Uri? = null,
+    val savedFolder: String? = null,
 ) {
+    /** Whether the picked vault or journal folder differs from the saved one. */
+    val changed: Boolean
+        get() = vault != null && (
+            vault.uri != savedVaultUri ||
+                !VaultPaths.normalizeFolder(journalInput).equals(savedFolder, ignoreCase = true)
+            )
+
     val canSave: Boolean
         get() = vault != null && !saving &&
             (journalCheck is JournalCheck.Found || journalCheck == JournalCheck.Missing)
@@ -55,7 +65,11 @@ class SetupViewModel(
 
     private val access = container.vaultAccess
     private val _state = MutableStateFlow(
-        SetupUiState(journalInput = initial?.journalFolder ?: VaultPaths.DEFAULT_JOURNAL_FOLDER),
+        SetupUiState(
+            journalInput = initial?.journalFolder ?: VaultPaths.DEFAULT_JOURNAL_FOLDER,
+            savedVaultUri = initial?.vaultUri,
+            savedFolder = initial?.journalFolder,
+        ),
     )
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
 

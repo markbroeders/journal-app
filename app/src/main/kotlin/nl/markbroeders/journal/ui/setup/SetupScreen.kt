@@ -8,6 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,8 +29,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.AlertDialog
@@ -37,6 +41,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +69,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -149,34 +156,35 @@ fun SetupScreen(
                     isError = true,
                 )
             }
-            Text(
-                "Journal reads and writes the daily notes in your Obsidian vault. Your notes stay " +
-                    "plain Markdown files; nothing is moved or renamed.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = LocalJournalColors.current.body,
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
-
-            VaultSection(state, onPick = { picker.launch(state.vault?.uri) })
-
-            if (state.vault != null) {
-                JournalFolderSection(state, viewModel::onJournalInputChange)
-            }
-
-            Button(
-                onClick = { viewModel.save(onDone) },
-                enabled = state.canSave,
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-            ) {
-                Text(if (onCancel == null) "Continue" else "Save")
+            if (onCancel == null) {
+                Text(
+                    "Journal reads and writes the daily notes in your Obsidian vault. Your notes stay " +
+                        "plain Markdown files; nothing is moved or renamed.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = LocalJournalColors.current.body,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+                VaultSection(state, onPick = { picker.launch(state.vault?.uri) })
+                if (state.vault != null) {
+                    JournalFolderSection(state, viewModel::onJournalInputChange)
+                }
+                SaveButton("Continue", enabled = state.canSave) { viewModel.save(onDone) }
+            } else {
+                VaultRows(state, onPick = { picker.launch(state.vault?.uri) }, onJournalInputChange = viewModel::onJournalInputChange)
+                // Theme, lock and reminder apply right away; a different vault or folder needs saving.
+                if (state.changed) SaveButton("Save vault settings", enabled = state.canSave) { viewModel.save(onDone) }
             }
 
             if (appearance != null) AppearanceSection(appearance, onAppearanceChange)
-            if (lockEnabled != null) LockSection(lockEnabled, onLockChange)
-            if (reminder != null) ReminderSection(reminder, onReminderChange)
+            if (reminder != null || lockEnabled != null) {
+                SectionCard("Habits & privacy") {
+                    if (reminder != null) ReminderRow(reminder, onReminderChange)
+                    if (reminder != null && lockEnabled != null) {
+                        HorizontalDivider(Modifier.padding(start = 42.dp), color = LocalJournalColors.current.line)
+                    }
+                    if (lockEnabled != null) LockRow(lockEnabled, onLockChange)
+                }
+            }
         }
     }
 }
@@ -213,43 +221,136 @@ private fun VaultSection(state: SetupUiState, onPick: () -> Unit) {
 }
 
 @Composable
+private fun SaveButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp),
+    ) {
+        Text(label)
+    }
+}
+
+@Composable
 private fun JournalFolderSection(state: SetupUiState, onInputChange: (String) -> Unit) {
     SectionCard("Journal folder") {
         Text(
             "Folder inside the vault that holds the year folders (YYYY/YYYY-MM-DD.md).",
             style = MaterialTheme.typography.bodyMedium,
         )
-        val check = state.journalCheck
-        val isError = check == JournalCheck.Invalid || check == JournalCheck.NotAFolder ||
-            check == JournalCheck.Error
-        OutlinedTextField(
-            value = state.journalInput,
-            onValueChange = onInputChange,
-            label = { Text("Path in vault") },
-            singleLine = true,
-            isError = isError,
-            supportingText = { Text(checkMessage(check)) },
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.None,
-                autoCorrectEnabled = false,
-                imeAction = ImeAction.Done,
-            ),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        val folders = state.vault?.folders.orEmpty()
-        if (folders.isNotEmpty()) {
-            val selected = VaultPaths.normalizeFolder(state.journalInput)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (folder in folders) {
-                    FilterChip(
-                        selected = folder.equals(selected, ignoreCase = true),
-                        onClick = { onInputChange(folder) },
-                        label = { Text(folder) },
-                    )
-                }
+        JournalFolderFields(state, onInputChange)
+    }
+}
+
+/** The journal folder's path field with its check, and the vault's top folders as suggestions. */
+@Composable
+private fun JournalFolderFields(state: SetupUiState, onInputChange: (String) -> Unit) {
+    val check = state.journalCheck
+    val isError = check == JournalCheck.Invalid || check == JournalCheck.NotAFolder ||
+        check == JournalCheck.Error
+    OutlinedTextField(
+        value = state.journalInput,
+        onValueChange = onInputChange,
+        label = { Text("Path in vault") },
+        singleLine = true,
+        isError = isError,
+        supportingText = { Text(checkMessage(check)) },
+        keyboardOptions = KeyboardOptions(
+            capitalization = KeyboardCapitalization.None,
+            autoCorrectEnabled = false,
+            imeAction = ImeAction.Done,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    val folders = state.vault?.folders.orEmpty()
+    if (folders.isNotEmpty()) {
+        val selected = VaultPaths.normalizeFolder(state.journalInput)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (folder in folders) {
+                FilterChip(
+                    selected = folder.equals(selected, ignoreCase = true),
+                    onClick = { onInputChange(folder) },
+                    label = { Text(folder) },
+                )
             }
         }
     }
+}
+
+/**
+ * Settings: the vault and journal folder as two rows, as in Vink. The vault row opens the folder
+ * picker, the journal folder row a dialog with the path and suggestions.
+ */
+@Composable
+private fun VaultRows(state: SetupUiState, onPick: () -> Unit, onJournalInputChange: (String) -> Unit) {
+    var editingFolder by remember { mutableStateOf<String?>(null) }
+    val colors = LocalJournalColors.current
+    SectionCard("Vault") {
+        val vault = state.vault
+        SettingRow(
+            Icons.Outlined.Folder,
+            colors.violet,
+            "Vault",
+            when {
+                state.loadingVault -> "Loading…"
+                vault != null -> vault.name
+                else -> "Choose the vault folder"
+            },
+            onClick = onPick,
+        ) { Chevron() }
+        if (vault != null && !vault.isObsidianVault) {
+            Notice(Icons.Filled.Warning, "This folder has no .obsidian folder, so it may not be the vault root.", isError = true)
+        }
+        state.vaultError?.let { Notice(Icons.Filled.Warning, it, isError = true) }
+        if (vault != null) {
+            HorizontalDivider(Modifier.padding(start = 42.dp), color = colors.line)
+            SettingRow(
+                Icons.AutoMirrored.Outlined.MenuBook,
+                MaterialTheme.colorScheme.primary,
+                "Journal folder",
+                "${state.journalInput} · ${checkMessage(state.journalCheck)}",
+                onClick = { editingFolder = state.journalInput },
+            ) { Chevron() }
+        }
+    }
+    editingFolder?.let { before ->
+        AlertDialog(
+            onDismissRequest = {
+                onJournalInputChange(before)
+                editingFolder = null
+            },
+            title = { Text("Journal folder") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Folder inside the vault that holds the year folders (YYYY/YYYY-MM-DD.md).",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    JournalFolderFields(state, onJournalInputChange)
+                }
+            },
+            confirmButton = { TextButton(onClick = { editingFolder = null }) { Text("OK") } },
+            dismissButton = {
+                TextButton(onClick = {
+                    onJournalInputChange(before)
+                    editingFolder = null
+                }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun Chevron() {
+    Icon(
+        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+        contentDescription = null,
+        tint = LocalJournalColors.current.faint,
+        modifier = Modifier.size(20.dp),
+    )
 }
 
 @Composable
@@ -312,9 +413,13 @@ private fun SettingRow(
     tint: Color,
     title: String,
     description: String,
+    onClick: (() -> Unit)? = null,
     control: @Composable () -> Unit,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        if (onClick != null) Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick) else Modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Box(
             Modifier
                 .size(30.dp)
@@ -337,7 +442,7 @@ private fun SettingRow(
 }
 
 @Composable
-private fun LockSection(enabled: Boolean, onChange: (Boolean) -> Unit) {
+private fun LockRow(enabled: Boolean, onChange: (Boolean) -> Unit) {
     val context = LocalContext.current
     // Checked again on resume: the user may have set a screen lock in the meantime.
     var deviceSecure by remember { mutableStateOf(isDeviceSecure(context)) }
@@ -345,28 +450,25 @@ private fun LockSection(enabled: Boolean, onChange: (Boolean) -> Unit) {
         deviceSecure = isDeviceSecure(context)
         onPauseOrDispose {}
     }
-    SectionCard("Privacy") {
-        SettingRow(
-            Icons.Outlined.Lock,
-            LocalJournalColors.current.teal,
-            "App lock",
-            "Unlock with fingerprint, face or the device PIN/pattern whenever you open the app. " +
-                "New entries can still be written from the widget, shortcuts and sharing.",
-        ) {
-            Switch(
-                checked = enabled,
-                onCheckedChange = onChange,
-                enabled = enabled || deviceSecure,
-            )
-        }
-        if (!enabled && !deviceSecure) {
-            Notice(Icons.Filled.Warning, "Set a screen lock (PIN, pattern or password) in Android's settings first.", isError = true)
-        }
+    SettingRow(
+        Icons.Outlined.Lock,
+        LocalJournalColors.current.teal,
+        "App lock",
+        "Fingerprint, face or screen lock. Quick capture still works.",
+    ) {
+        Switch(
+            checked = enabled,
+            onCheckedChange = onChange,
+            enabled = enabled || deviceSecure,
+        )
+    }
+    if (!enabled && !deviceSecure) {
+        Notice(Icons.Filled.Warning, "Set a screen lock (PIN, pattern or password) in Android's settings first.", isError = true)
     }
 }
 
 @Composable
-private fun ReminderSection(reminder: ReminderSettings, onChange: (ReminderSettings) -> Unit) {
+private fun ReminderRow(reminder: ReminderSettings, onChange: (ReminderSettings) -> Unit) {
     val context = LocalContext.current
     // Checked again on resume: notifications may have been allowed in Android's settings.
     var canNotify by remember { mutableStateOf(DailyReminder.canNotify(context)) }
@@ -379,55 +481,47 @@ private fun ReminderSection(reminder: ReminderSettings, onChange: (ReminderSetti
     }
     var pickingTime by remember { mutableStateOf(false) }
 
-    SectionCard("Reminder") {
-        SettingRow(
-            Icons.Outlined.Notifications,
-            LocalJournalColors.current.amber,
-            "Daily reminder",
-            "A notification at a set time, on days you haven't written anything yet.",
-        ) {
-            Switch(
-                checked = reminder.enabled,
-                onCheckedChange = { on ->
-                    onChange(reminder.copy(enabled = on))
-                    if (on && !canNotify && Build.VERSION.SDK_INT >= 33) {
-                        permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                },
-            )
-        }
+    SettingRow(
+        Icons.Outlined.Notifications,
+        LocalJournalColors.current.amber,
+        "Daily reminder",
+        if (reminder.enabled) "If nothing is written by then" else "On days you haven't written yet",
+    ) {
         if (reminder.enabled) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                onClick = { pickingTime = true },
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.padding(end = 10.dp),
+            ) {
                 Text(
-                    "Remind me at",
-                    style = SettingTitle,
+                    reminder.time.format(TIME_FORMAT),
+                    style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 42.dp),
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .semantics { contentDescription = "Reminder time ${reminder.time.format(TIME_FORMAT)}" },
                 )
-                Surface(
-                    onClick = { pickingTime = true },
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                ) {
-                    Text(
-                        reminder.time.format(TIME_FORMAT),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
-                }
             }
-            if (!canNotify) {
-                Notice(Icons.Filled.Warning, "Notifications for Journal are turned off, so the reminder can't show.", isError = true)
-                OutlinedButton(onClick = {
-                    context.startActivity(
-                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
-                    )
-                }) {
-                    Text("Open notification settings")
+        }
+        Switch(
+            checked = reminder.enabled,
+            onCheckedChange = { on ->
+                onChange(reminder.copy(enabled = on))
+                if (on && !canNotify && Build.VERSION.SDK_INT >= 33) {
+                    permission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
-            }
+            },
+        )
+    }
+    if (reminder.enabled && !canNotify) {
+        Notice(Icons.Filled.Warning, "Notifications for Journal are turned off, so the reminder can't show.", isError = true)
+        OutlinedButton(onClick = {
+            context.startActivity(
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+            )
+        }) {
+            Text("Open notification settings")
         }
     }
 

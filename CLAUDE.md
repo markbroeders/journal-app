@@ -199,7 +199,7 @@ with optical size fixed at 12 (`res/font`, OFL). Lists (timeline, calendar day, 
 search) put entries straight on the page: `EntryRow` items draw the hairlines
 (`firstOfDay`/`lastOfDay`); in the timeline the first entry of a day carries a date column (day
 number, weekday or TODAY, the day's mood and star), elsewhere `ListHeader` labels sit between
-days. Settings are grouped white cards on the grey `ground` with segmented controls. An entry's
+days. Settings are grouped white cards on the grey `ground`: vault and journal folder as two rows (the folder in a dialog; "Save vault settings" only appears once either changed), segmented controls for theme and font, and the reminder and app lock as rows with switches. First-run setup keeps the explained, step-by-step layout. An entry's
 first resolvable photo/video is its thumbnail and a day's first one fills its calendar circle
 (`EntryPhotos`, built from the media grid's list and provided via `LocalEntryPhotos`); other days
 with entries get a blue dot. `TimelineEntry.hasTitle` decides whether the first line is shown as a
