@@ -4,6 +4,11 @@ import android.text.format.DateFormat
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AcUnit
 import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.SentimentDissatisfied
+import androidx.compose.material.icons.outlined.SentimentNeutral
+import androidx.compose.material.icons.outlined.SentimentSatisfied
+import androidx.compose.material.icons.outlined.SentimentVeryDissatisfied
+import androidx.compose.material.icons.outlined.SentimentVerySatisfied
 import androidx.compose.material.icons.outlined.Thunderstorm
 import androidx.compose.material.icons.outlined.Thermostat
 import androidx.compose.material.icons.outlined.Umbrella
@@ -32,12 +37,21 @@ fun weatherIcon(weather: String): ImageVector {
     }
 }
 
-fun moodEmoji(mood: Int): String = when (mood) {
-    1 -> "😞"
-    2 -> "🙁"
-    3 -> "😐"
-    4 -> "🙂"
-    else -> "😄"
+/** A face for mood 1–5, drawn in one colour like the other icons (no emoji). */
+fun moodIcon(mood: Int): ImageVector = when (mood) {
+    1 -> Icons.Outlined.SentimentVeryDissatisfied
+    2 -> Icons.Outlined.SentimentDissatisfied
+    3 -> Icons.Outlined.SentimentNeutral
+    4 -> Icons.Outlined.SentimentSatisfied
+    else -> Icons.Outlined.SentimentVerySatisfied
+}
+
+fun moodName(mood: Int): String = when (mood) {
+    1 -> "Awful"
+    2 -> "Bad"
+    3 -> "Okay"
+    4 -> "Good"
+    else -> "Great"
 }
 
 /** `08:42`, or "Day note" for the untimed part of a note. */
@@ -47,15 +61,13 @@ private fun locale(): Locale = Locale.getDefault()
 
 private fun String.capitalized(): String = replaceFirstChar { it.titlecase(locale()) }
 
-/** `Wednesday` for a day card's header, with Today / Yesterday where they apply. */
-fun weekdayLong(date: LocalDate, today: LocalDate = LocalDate.now()): String {
-    val weekday = date.dayOfWeek.getDisplayName(TextStyle.FULL, locale()).capitalized()
-    return when (date) {
-        today -> "$weekday · Today"
-        today.minusDays(1) -> "$weekday · Yesterday"
-        else -> weekday
+/** `WED` under a day's number in the timeline, or `TODAY`. */
+fun weekdayShort(date: LocalDate, today: LocalDate = LocalDate.now()): String =
+    if (date == today) {
+        "TODAY"
+    } else {
+        date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale()).trimEnd('.').uppercase(locale())
     }
-}
 
 /** `October 2026` month header. */
 fun monthYear(date: LocalDate): String =
@@ -65,6 +77,12 @@ fun monthYear(date: LocalDate): String =
 fun dayAndMonth(date: LocalDate): String {
     val pattern = DateFormat.getBestDateTimePattern(locale(), "dMMMM")
     return date.format(DateTimeFormatter.ofPattern(pattern, locale()))
+}
+
+/** `Wednesday 28 October`: weekday, day and month in the locale's order, no year. */
+fun dayAndMonthWithWeekday(date: LocalDate): String {
+    val pattern = DateFormat.getBestDateTimePattern(locale(), "EEEEdMMMM")
+    return date.format(DateTimeFormatter.ofPattern(pattern, locale())).capitalized()
 }
 
 /** `Monday 26 October 2026`, with Today / Yesterday where they apply. */

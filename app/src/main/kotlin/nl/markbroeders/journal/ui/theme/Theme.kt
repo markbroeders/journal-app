@@ -22,67 +22,111 @@ import androidx.compose.ui.unit.sp
 import nl.markbroeders.journal.R
 
 // One fixed journal blue instead of wallpaper-based dynamic colour, so the app has its own look.
-// A light sky blue for the header, and a deeper shade of it for blue text on white (readability).
-private val SkyBlue = Color(0xFF3FB2EE)
-private val Blue = Color(0xFF178BCB)
-private val BlueLight = Color(0xFF8FD3F7)
-private val HeaderDark = Color(0xFF1B4560)
+// White pages with Vink's grey text ramp (ink, body, muted, faint); blue is only an accent.
+private val Ink = Color(0xFF1D2026)
+private val Blue = Color(0xFF1677B5)
+private val BlueLight = Color(0xFF7CC8F2)
 
 private val LightColors = lightColorScheme(
     primary = Blue,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFDDF1FC),
+    primaryContainer = Color(0xFFE3F1FA),
     onPrimaryContainer = Color(0xFF0B3550),
-    secondary = Color(0xFF52606D),
-    secondaryContainer = Color(0xFFDDF1FC),
+    secondary = Color(0xFF5F6672),
+    secondaryContainer = Color(0xFFE3F1FA),
     onSecondaryContainer = Color(0xFF0B3550),
     background = Color.White,
-    onBackground = Color(0xFF1B1D20),
+    onBackground = Ink,
     surface = Color.White,
-    onSurface = Color(0xFF1B1D20),
-    surfaceVariant = Color(0xFFF2F4F6),
-    onSurfaceVariant = Color(0xFF6A7178),
+    onSurface = Ink,
+    surfaceVariant = Color(0xFFF3F4F6),
+    onSurfaceVariant = Color(0xFF5F6672),
     surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFF8F9FA),
-    surfaceContainer = Color(0xFFF4F6F8),
-    surfaceContainerHigh = Color(0xFFEEF1F4),
-    surfaceContainerHighest = Color(0xFFE9EDF0),
-    outline = Color(0xFF9AA1A8),
-    outlineVariant = Color(0xFFE3E6EA),
+    surfaceContainerLow = Color(0xFFF7F8F9),
+    surfaceContainer = Color(0xFFF3F4F6),
+    surfaceContainerHigh = Color(0xFFEBEDF0),
+    surfaceContainerHighest = Color(0xFFE7E9EC),
+    outline = Color(0xFF8A919C),
+    outlineVariant = Color(0xFFE3E5E8),
 )
 
 private val DarkColors = darkColorScheme(
     primary = BlueLight,
-    onPrimary = Color(0xFF07263A),
-    primaryContainer = Color(0xFF1D4B6A),
+    onPrimary = Color(0xFF0B1220),
+    primaryContainer = Color(0xFF1D3A4D),
     onPrimaryContainer = Color(0xFFD6ECFA),
-    secondary = Color(0xFFAEB8C2),
-    secondaryContainer = Color(0xFF1D4B6A),
+    secondary = Color(0xFF9AA1AD),
+    secondaryContainer = Color(0xFF1D3A4D),
     onSecondaryContainer = Color(0xFFD6ECFA),
-    background = Color(0xFF121416),
-    onBackground = Color(0xFFE6E8EA),
-    surface = Color(0xFF121416),
-    onSurface = Color(0xFFE6E8EA),
-    surfaceVariant = Color(0xFF1E2226),
-    onSurfaceVariant = Color(0xFF9DA4AB),
-    surfaceContainerLowest = Color(0xFF0E1012),
-    surfaceContainerLow = Color(0xFF16191C),
-    surfaceContainer = Color(0xFF1A1D20),
-    surfaceContainerHigh = Color(0xFF22262A),
-    surfaceContainerHighest = Color(0xFF2A2F34),
-    outline = Color(0xFF6E757C),
-    outlineVariant = Color(0xFF2C3136),
+    background = Color(0xFF16181D),
+    onBackground = Color(0xFFE8EAEE),
+    surface = Color(0xFF16181D),
+    onSurface = Color(0xFFE8EAEE),
+    surfaceVariant = Color(0xFF1D2026),
+    onSurfaceVariant = Color(0xFF9AA1AD),
+    surfaceContainerLowest = Color(0xFF111317),
+    surfaceContainerLow = Color(0xFF1A1C21),
+    surfaceContainer = Color(0xFF1D2026),
+    surfaceContainerHigh = Color(0xFF262A31),
+    surfaceContainerHighest = Color(0xFF2A2E36),
+    outline = Color(0xFF7A818D),
+    outlineVariant = Color(0xFF2E323A),
 )
 
 /**
- * Colours outside the Material scheme: the blue header used on every screen, and the tinted
- * [ground] behind lists of [card]s (one card per day).
+ * Colours outside the Material scheme, after Vink: the text ramp ([body] between onSurface and
+ * the muted onSurfaceVariant, [faint] for decoration only), [line] for hairlines, [ground] behind
+ * grouped cards (settings), [chip] for small filled chips, and one colour per section: [amber]
+ * (On This Day, stars, moods; [amberText] on [amberSoft]), [pink] (calendar), [teal], [violet].
  */
 @Immutable
-data class JournalColors(val header: Color, val onHeader: Color, val ground: Color, val card: Color)
+data class JournalColors(
+    val body: Color,
+    val faint: Color,
+    val line: Color,
+    val ground: Color,
+    val card: Color,
+    val chip: Color,
+    val tagBorder: Color,
+    val amber: Color,
+    val amberText: Color,
+    val amberSoft: Color,
+    val pink: Color,
+    val teal: Color,
+    val violet: Color,
+)
 
-private val LightJournalColors = JournalColors(SkyBlue, Color.White, ground = Color(0xFFEEF2F5), card = Color.White)
-private val DarkJournalColors = JournalColors(HeaderDark, Color.White, ground = Color(0xFF0C0E10), card = Color(0xFF1A1D20))
+private val LightJournalColors = JournalColors(
+    body = Color(0xFF4B5260),
+    faint = Color(0xFF8A919C),
+    line = Color(0xFFE3E5E8),
+    ground = Color(0xFFF3F4F6),
+    card = Color.White,
+    chip = Color(0xFFF3F4F6),
+    tagBorder = Color(0xFFC9CDD3),
+    amber = Color(0xFFD97706),
+    amberText = Color(0xFFB45309),
+    amberSoft = Color(0xFFFFF7ED),
+    pink = Color(0xFFDB2777),
+    teal = Color(0xFF0D9488),
+    violet = Color(0xFF7C3AED),
+)
+
+private val DarkJournalColors = JournalColors(
+    body = Color(0xFFC3C8D0),
+    faint = Color(0xFF7A818D),
+    line = Color(0xFF2E323A),
+    ground = Color(0xFF0F1114),
+    card = Color(0xFF1D2026),
+    chip = Color(0xFF262A31),
+    tagBorder = Color(0xFF3A3F49),
+    amber = Color(0xFFFBBF24),
+    amberText = Color(0xFFFCD34D),
+    amberSoft = Color(0xFF2A2114),
+    pink = Color(0xFFF472B6),
+    teal = Color(0xFF2DD4BF),
+    violet = Color(0xFFA78BFA),
+)
 
 val LocalJournalColors = staticCompositionLocalOf { LightJournalColors }
 
@@ -115,6 +159,21 @@ private val JournalTypography = Typography().let { base ->
     )
 }
 
+/** Text styles outside the Material scale, after Vink. */
+object JournalType {
+    /** Screen titles: Journal, Calendar. */
+    val title = TextStyle(fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold)
+
+    /** Section labels, shown in capitals: OCTOBER 2026, MOOD. */
+    val label = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+
+    /** Entry previews in lists (in the reading font). */
+    val preview = TextStyle(fontSize = 15.5.sp, lineHeight = 23.sp)
+
+    /** Small meta text: times, places, chips. */
+    val meta = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
+}
+
 @Composable
 fun JournalTheme(dark: Boolean = false, serif: Boolean = true, content: @Composable () -> Unit) {
     val journalColors = if (dark) DarkJournalColors else LightJournalColors
@@ -130,16 +189,16 @@ fun JournalTheme(dark: Boolean = false, serif: Boolean = true, content: @Composa
     }
 }
 
-/** Blue header bar colours, shared by all top bars. */
+/** Top bar colours, shared by all top bars: white like the page, muted icons. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun journalTopBarColors(): TopAppBarColors {
-    val c = LocalJournalColors.current
+    val colors = MaterialTheme.colorScheme
     return TopAppBarDefaults.topAppBarColors(
-        containerColor = c.header,
-        scrolledContainerColor = c.header,
-        titleContentColor = c.onHeader,
-        navigationIconContentColor = c.onHeader,
-        actionIconContentColor = c.onHeader,
+        containerColor = colors.surface,
+        scrolledContainerColor = colors.surface,
+        titleContentColor = colors.onSurface,
+        navigationIconContentColor = colors.onSurface,
+        actionIconContentColor = colors.onSurfaceVariant,
     )
 }

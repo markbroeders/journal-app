@@ -185,17 +185,29 @@ vault root, `Attachments` and the year folders into `attachments`, and the grid 
 by name (case-insensitive), like Obsidian resolves `![[name.jpg]]`. Thumbnails via Coil
 (video frames via coil-video); a full-screen pager viewer links to the entry, videos open in
 another app.
-Look: a sky-blue header in both themes; Settings → Appearance picks System / Light / Dark
+Look (after the Vink app): white pages with no coloured top bar; tabs open with a big bold title
+and the section's coloured icon (`ScreenHeader`), blue `#1677B5` (`#7CC8F2` dark) is only an
+accent, and text uses Vink's grey ramp (onSurface, `JournalColors.body`, onSurfaceVariant,
+`faint`) with `line` hairlines instead of cards or shadows. Section colours: blue Journal, pink
+Calendar, teal Search, violet Media, amber On This Day/stars/moods. Moods are drawn as one-colour
+face icons (`moodIcon`), not emoji. `JournalType` holds the extra text styles (title, small-caps
+`label`, list `preview`, `meta`). Settings → Appearance picks System / Light / Dark
 (`SettingsStore.appearance`, `JournalTheme(dark, serif)`) and the entry font. Entry text (the
-entry view's `MarkdownView` and the editor) is set in Literata via `TextStyle.reading()` unless
-sans serif is chosen; the font is a Latin subset of the variable font with optical size fixed at
-12 (`res/font`, OFL). Lists (timeline, calendar day, On This Day, search) show each day as one
-rounded card on a tinted ground (`JournalColors.ground`/`card`): `EntryRow` items draw the card's
-segments (`firstOfDay`/`lastOfDay`), the timeline's first entry carries the day header, and
-`ListHeader` sits between cards. An entry's first resolvable photo/video is its thumbnail and a
-day's first one fills its calendar circle (`EntryPhotos`, built from the media grid's list and
-provided via `LocalEntryPhotos`). `TimelineEntry.hasTitle` decides whether the first line is shown
-as a bold title or the text runs on.
+entry view's `MarkdownView`, the editor and list previews) is set in Literata via
+`TextStyle.reading()` unless sans serif is chosen; the font is a Latin subset of the variable font
+with optical size fixed at 12 (`res/font`, OFL). Lists (timeline, calendar day, On This Day,
+search) put entries straight on the page: `EntryRow` items draw the hairlines
+(`firstOfDay`/`lastOfDay`); in the timeline the first entry of a day carries a date column (day
+number, weekday or TODAY, the day's mood and star), elsewhere `ListHeader` labels sit between
+days. Settings are grouped white cards on the grey `ground` with segmented controls. An entry's
+first resolvable photo/video is its thumbnail and a day's first one fills its calendar circle
+(`EntryPhotos`, built from the media grid's list and provided via `LocalEntryPhotos`); other days
+with entries get a blue dot. `TimelineEntry.hasTitle` decides whether the first line is shown as a
+bold title or the text runs on.
+New entries open the editor as a sheet over the current screen (date chips Today / Yesterday /
+other date and the time, the text, five mood faces, a toolbar with Save); its expand button or
+editing an existing entry gives the full-screen editor with the same content. A quick capture
+made while locked always opens full screen (nothing of the journal may show behind it).
 Entry view: the index stores each entry's Markdown `body`; `MarkdownDoc` (`:core`) parses it into
 blocks/inlines (CommonMark basics plus Obsidian's wikilinks, embeds, `==highlight==`, `#tags`,
 callouts, tasks, tables; `%%comments%%` hidden; single newlines are line breaks) and

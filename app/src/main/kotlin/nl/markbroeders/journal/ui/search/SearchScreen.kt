@@ -2,14 +2,17 @@ package nl.markbroeders.journal.ui.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -20,11 +23,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,9 +53,10 @@ import nl.markbroeders.journal.data.SearchSql
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.ui.components.EntryRow
 import nl.markbroeders.journal.ui.components.ListHeader
+import nl.markbroeders.journal.ui.components.ScreenHeader
 import nl.markbroeders.journal.ui.components.longDate
 import nl.markbroeders.journal.ui.theme.LocalJournalColors
-import nl.markbroeders.journal.ui.theme.journalTopBarColors
+import nl.markbroeders.journal.ui.theme.JournalType
 
 /** Search field in the header; tag suggestions while it's empty, matching entries by day below. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -80,13 +83,12 @@ fun SearchScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { SearchField(text, viewModel::setText, focus, onSearch = { keyboard?.hide() }) },
-                colors = journalTopBarColors(),
-            )
+            Column(Modifier.background(MaterialTheme.colorScheme.surface)) {
+                ScreenHeader("Search", Icons.Outlined.Search, LocalJournalColors.current.teal)
+                SearchField(text, viewModel::setText, focus, onSearch = { keyboard?.hide() })
+            }
         },
         bottomBar = bottomBar,
-        containerColor = LocalJournalColors.current.ground,
     ) { padding ->
         LazyColumn(
             Modifier
@@ -104,17 +106,15 @@ fun SearchScreen(
                         item(key = "tags-header") { ListHeader("Tags") }
                         item(key = "tags") {
                             FlowRow(
-                                Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
                                 for (tag in tags) {
-                                    SuggestionChip(
-                                        onClick = {
-                                            viewModel.addTag(tag.tag)
-                                            focus.requestFocus()
-                                        },
-                                        label = { Text("#${tag.tag}  ${tag.count}") },
-                                    )
+                                    TagCount(tag.tag, tag.count) {
+                                        viewModel.addTag(tag.tag)
+                                        focus.requestFocus()
+                                    }
                                 }
                             }
                         }
@@ -132,9 +132,9 @@ fun SearchScreen(
                         }
                         Text(
                             label,
-                            style = MaterialTheme.typography.labelLarge,
+                            style = JournalType.meta,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
                         )
                     }
                     for ((day, snippets) in current.days) {
@@ -160,9 +160,10 @@ fun SearchScreen(
     }
 }
 
+/** A filled, rounded search field under the header, as in Vink. */
 @Composable
 private fun SearchField(text: String, onChange: (String) -> Unit, focus: FocusRequester, onSearch: () -> Unit) {
-    val onHeader = LocalJournalColors.current.onHeader
+    val colors = LocalJournalColors.current
     // Keeps the cursor; text set from outside (a tag chip, clear) puts the cursor at the end.
     var field by remember { mutableStateOf(TextFieldValue(text, TextRange(text.length))) }
     if (field.text != text) field = TextFieldValue(text, TextRange(text.length))
@@ -172,7 +173,7 @@ private fun SearchField(text: String, onChange: (String) -> Unit, focus: FocusRe
             field = it
             onChange(it.text)
         },
-        placeholder = { Text("Search") },
+        placeholder = { Text("Words, \"phrases\" or #tags") },
         leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
         trailingIcon = {
             if (text.isNotEmpty()) {
@@ -182,28 +183,36 @@ private fun SearchField(text: String, onChange: (String) -> Unit, focus: FocusRe
             }
         },
         singleLine = true,
+        shape = RoundedCornerShape(12.dp),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { onSearch() }),
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = Color.Transparent,
-            unfocusedContainerColor = Color.Transparent,
+            focusedContainerColor = colors.chip,
+            unfocusedContainerColor = colors.chip,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
-            focusedTextColor = onHeader,
-            unfocusedTextColor = onHeader,
-            cursorColor = onHeader,
-            focusedPlaceholderColor = onHeader.copy(alpha = 0.7f),
-            unfocusedPlaceholderColor = onHeader.copy(alpha = 0.7f),
-            focusedLeadingIconColor = onHeader,
-            unfocusedLeadingIconColor = onHeader,
-            focusedTrailingIconColor = onHeader,
-            unfocusedTrailingIconColor = onHeader,
+            focusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(end = 8.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)
             .focusRequester(focus),
     )
+}
+
+/** `#tag 12` as a filled pill. */
+@Composable
+private fun TagCount(tag: String, count: Int, onClick: () -> Unit) {
+    val colors = LocalJournalColors.current
+    Surface(onClick = onClick, shape = RoundedCornerShape(14.dp), color = colors.chip, contentColor = colors.body) {
+        Row(Modifier.padding(horizontal = 11.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("#$tag", style = MaterialTheme.typography.labelLarge)
+            Text("$count", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 @Composable

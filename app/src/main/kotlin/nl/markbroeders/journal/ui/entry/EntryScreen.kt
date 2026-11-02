@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +22,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -34,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -45,17 +44,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import nl.markbroeders.journal.data.TimelineDay
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.ui.components.MarkdownView
 import nl.markbroeders.journal.ui.components.longDate
-import nl.markbroeders.journal.ui.components.moodEmoji
+import nl.markbroeders.journal.ui.components.MetaChip
+import nl.markbroeders.journal.ui.components.TagChip
+import nl.markbroeders.journal.ui.components.moodIcon
+import nl.markbroeders.journal.ui.components.moodName
 import nl.markbroeders.journal.ui.components.timeLabel
 import nl.markbroeders.journal.ui.components.weatherIcon
+import nl.markbroeders.journal.ui.theme.JournalType
+import nl.markbroeders.journal.ui.theme.LocalJournalColors
 import nl.markbroeders.journal.ui.theme.journalTopBarColors
+import java.util.Locale
 import nl.markbroeders.journal.ui.timeline.Deletion
 
 /** One entry, read-only, with edit and delete actions. */
@@ -120,39 +124,33 @@ fun EntryScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 20.dp),
         ) {
+            val colors = LocalJournalColors.current
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    longDate(entry.date),
-                    style = MaterialTheme.typography.labelLarge,
+                    longDate(entry.date).uppercase(Locale.getDefault()),
+                    style = JournalType.label,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
                 if (day.starred) {
-                    Icon(Icons.Rounded.Star, contentDescription = "Starred day", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Rounded.Star, contentDescription = "Starred day", tint = colors.amber, modifier = Modifier.size(20.dp))
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(timeLabel(entry.key), style = MaterialTheme.typography.headlineSmall)
-                (entry.mood ?: day.mood)?.let { Text(moodEmoji(it), style = MaterialTheme.typography.headlineSmall) }
-            }
-
-            val details = buildList {
-                entry.location?.let { add(Icons.Outlined.Place to it) }
-                entry.weather?.let { add(weatherIcon(it) to it) }
+            Spacer(Modifier.height(10.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                MetaChip(Icons.Outlined.Schedule, timeLabel(entry.key))
+                (entry.mood ?: day.mood)?.let {
+                    MetaChip(moodIcon(it), moodName(it), background = colors.amberSoft, content = colors.amberText, iconTint = colors.amber)
+                }
+                entry.location?.let { MetaChip(Icons.Outlined.Place, it) }
+                entry.weather?.let { MetaChip(weatherIcon(it), it) }
                 if (entry.mediaCount > 0) {
-                    add(Icons.Outlined.PhotoCamera to "${entry.mediaCount} ${if (entry.mediaCount == 1) "photo" else "photos"}")
-                }
-            }
-            if (details.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    details.forEach { (icon, text) -> Detail(icon, text) }
+                    MetaChip(Icons.Outlined.PhotoCamera, "${entry.mediaCount} ${if (entry.mediaCount == 1) "photo" else "photos"}")
                 }
             }
 
             Spacer(Modifier.height(16.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = LocalJournalColors.current.line)
             Spacer(Modifier.height(20.dp))
 
             if (entry.body.isNotBlank()) {
@@ -178,7 +176,7 @@ fun EntryScreen(
             val tags = (day.tags + entry.tags).distinctBy { it.lowercase() }
             if (tags.isNotEmpty()) {
                 Spacer(Modifier.height(24.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     tags.forEach { tag -> TagChip(tag) { onTag(tag) } }
                 }
             }
@@ -214,26 +212,5 @@ fun EntryScreen(
             confirmButton = { TextButton(onClick = onDismissDeletion) { Text("OK") } },
         )
         Deletion.InProgress, null -> {}
-    }
-}
-
-@Composable
-private fun Detail(icon: ImageVector, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun TagChip(tag: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        shape = MaterialTheme.shapes.small,
-    ) {
-        Text("#$tag", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
     }
 }

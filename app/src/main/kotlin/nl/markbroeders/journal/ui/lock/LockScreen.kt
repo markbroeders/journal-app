@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
-import nl.markbroeders.journal.ui.theme.LocalJournalColors
+import nl.markbroeders.journal.ui.theme.JournalType
 
 /**
  * Covers the app while it is locked. Asks to unlock once for each [promptRequest] (the app
@@ -47,24 +47,21 @@ fun LockScreen(
         }
         onStopOrDispose {}
     }
-    val colors = LocalJournalColors.current
+    val colors = MaterialTheme.colorScheme
     Column(
         Modifier
             .fillMaxSize()
-            .background(colors.header)
+            .background(colors.surface)
             .padding(32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(Icons.Outlined.Lock, contentDescription = null, tint = colors.onHeader, modifier = Modifier.size(56.dp))
-        Text("Journal is locked", style = MaterialTheme.typography.headlineSmall, color = colors.onHeader)
+        Icon(Icons.Outlined.Lock, contentDescription = null, tint = colors.primary, modifier = Modifier.size(56.dp))
+        Text("Journal is locked", style = JournalType.title, color = colors.onSurface)
         if (error != null) {
-            Text(error, style = MaterialTheme.typography.bodyMedium, color = colors.onHeader, textAlign = TextAlign.Center)
+            Text(error, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, textAlign = TextAlign.Center)
         }
-        Button(
-            onClick = onUnlock,
-            colors = ButtonDefaults.buttonColors(containerColor = colors.onHeader, contentColor = MaterialTheme.colorScheme.primary),
-        ) {
+        Button(onClick = onUnlock, shape = RoundedCornerShape(8.dp)) {
             Text("Unlock")
         }
     }

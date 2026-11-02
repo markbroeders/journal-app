@@ -18,8 +18,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
+import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -116,7 +116,7 @@ private fun Block(block: MdBlock, env: MdEnv, style: TextStyle) {
         is MdBlock.Quote -> {
             val bar = env.colors.rule
             Blocks(
-                block.blocks, env, style.copy(color = env.colors.muted),
+                block.blocks, env, style.copy(color = env.colors.muted, fontStyle = FontStyle.Italic),
                 Modifier
                     .drawBehind { drawRect(bar, size = Size(3.dp.toPx(), size.height)) }
                     .padding(start = 15.dp),
@@ -275,7 +275,7 @@ private fun ListItem(item: MdListItem, marker: String, env: MdEnv, style: TextSt
         Box(Modifier.widthIn(min = 22.dp).padding(end = 6.dp)) {
             if (item.task != null) {
                 Icon(
-                    if (item.checked) Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
+                    if (item.checked) Icons.Rounded.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
                     contentDescription = if (item.checked) "Done" else "To do",
                     tint = if (item.checked) env.colors.link else env.colors.muted,
                     modifier = Modifier

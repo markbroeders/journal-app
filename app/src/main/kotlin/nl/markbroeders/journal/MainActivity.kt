@@ -12,13 +12,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -41,6 +43,8 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +81,7 @@ import nl.markbroeders.journal.ui.search.SearchViewModel
 import nl.markbroeders.journal.ui.setup.SetupScreen
 import nl.markbroeders.journal.ui.setup.SetupViewModel
 import nl.markbroeders.journal.ui.theme.JournalTheme
+import nl.markbroeders.journal.ui.theme.LocalJournalColors
 import nl.markbroeders.journal.ui.timeline.TimelineScreen
 import nl.markbroeders.journal.ui.timeline.TimelineViewModel
 import java.time.LocalDate
@@ -111,16 +116,13 @@ class MainActivity : FragmentActivity() {
                 ThemeMode.SYSTEM, null -> isSystemInDarkTheme()
             }
             LaunchedEffect(dark) {
-                // Blue header in both themes: light status bar icons. Navigation bar icons follow the theme,
-                // not the system setting.
-                enableEdgeToEdge(
-                    statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-                    navigationBarStyle = if (dark) {
-                        SystemBarStyle.dark(Color.TRANSPARENT)
-                    } else {
-                        SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-                    },
-                )
+                // System bar icons follow the app's theme (white pages), not the system setting.
+                val style = if (dark) {
+                    SystemBarStyle.dark(Color.TRANSPARENT)
+                } else {
+                    SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                }
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
             JournalTheme(dark = dark, serif = appearance?.serif ?: true) {
                 Surface(Modifier.fillMaxSize()) {
@@ -282,6 +284,8 @@ private fun JournalRoot(
     var closeAfterEditor by rememberSaveable { mutableStateOf(false) }
     // The open editor is a quick capture made while locked.
     var writeOnly by rememberSaveable { mutableStateOf(false) }
+    // A new entry opens as a sheet over the current screen; this is set once it's expanded to full screen.
+    var editorFull by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf(Tab.Timeline) }
     var showOnThisDay by rememberSaveable { mutableStateOf(false) }
     // Index into the media list of the photo shown full screen.
@@ -300,6 +304,7 @@ private fun JournalRoot(
             writeOnly = lock.locked
             // While locked every capture leaves the app when done, instead of showing the journal.
             closeAfterEditor = capture is QuickCapture.Share || lock.locked
+            editorFull = false
             editorSession++
             editorTarget = "new|${LocalDate.now()}|${LocalTime.now().withSecond(0).withNano(0)}"
             onCaptureTaken()
@@ -351,6 +356,7 @@ private fun JournalRoot(
                     val open = rememberOpenEntry(timeline, openEntryId, onGone = { openEntryId = null })
                     val editor = editorTarget?.let(::parseEditorTarget)
                     val newEntry = { date: LocalDate ->
+                        editorFull = false
                         editorSession++
                         editorTarget = "new|$date|${LocalTime.now().withSecond(0).withNano(0)}"
                     }
@@ -359,32 +365,43 @@ private fun JournalRoot(
                     }
                     val photos = remember(mediaItems) { EntryPhotos(mediaItems.orEmpty()) }
                     CompositionLocalProvider(LocalEntryPhotos provides photos) {
-                        when {
-                            editor != null -> {
-                                val vm = viewModel(key = "editor-$editorSession") {
-                                    val shared = editorCapture as? QuickCapture.Share
-                                    EditorViewModel(
-                                        container, s.settings, editor, createSavedStateHandle(),
-                                        initialText = shared?.text.orEmpty(),
-                                        initialPhotos = shared?.photos.orEmpty(),
-                                        writeOnly = writeOnly,
-                                    )
-                                }
-                                EditorScreen(
-                                    vm,
-                                    startWithCamera = (editorCapture as? QuickCapture.NewEntry)?.camera == true,
-                                    onClosed = {
-                                        editorTarget = null
-                                        editorCapture = null
-                                        writeOnly = false
-                                        timeline.refresh()
-                                        if (closeAfterEditor) {
-                                            closeAfterEditor = false
-                                            onFinish()
-                                        }
-                                    },
+                        // New entries open as a sheet over the screen they came from, except a capture made
+                        // while locked (nothing of the journal may show behind it).
+                        val asSheet = editor is EditorTarget.New && !writeOnly && !editorFull
+                        val editorScreen = @Composable {
+                            val vm = viewModel(key = "editor-$editorSession") {
+                                val shared = editorCapture as? QuickCapture.Share
+                                EditorViewModel(
+                                    container, s.settings, editor!!, createSavedStateHandle(),
+                                    initialText = shared?.text.orEmpty(),
+                                    initialPhotos = shared?.photos.orEmpty(),
+                                    writeOnly = writeOnly,
                                 )
                             }
+                            EditorScreen(
+                                vm,
+                                // Not again after expanding the sheet: the camera was already opened from it.
+                                startWithCamera = (editorCapture as? QuickCapture.NewEntry)?.camera == true && !editorFull,
+                                asSheet = asSheet,
+                                onExpand = { editorFull = true },
+                                onClosed = {
+                                    editorTarget = null
+                                    editorCapture = null
+                                    writeOnly = false
+                                    editorFull = false
+                                    timeline.refresh()
+                                    if (closeAfterEditor) {
+                                        closeAfterEditor = false
+                                        onFinish()
+                                    }
+                                },
+                            )
+                        }
+                        if (editor != null && !asSheet) {
+                            editorScreen()
+                            return@CompositionLocalProvider
+                        }
+                        when {
                             viewerIndex != null && !mediaItems.isNullOrEmpty() -> MediaViewer(
                                 mediaItems.orEmpty(),
                                 initial = viewerIndex ?: 0,
@@ -484,6 +501,7 @@ private fun JournalRoot(
                                 )
                             }
                         }
+                        if (editor != null) editorScreen()
                     }
                 }
         }
@@ -492,42 +510,34 @@ private fun JournalRoot(
 
 private enum class Tab { Timeline, Calendar, Search, Media }
 
+/** Tabs on the page's white with a hairline above, the current one in blue (no pill), as in Vink. */
 @Composable
 private fun JournalNavigationBar(selected: Tab, onSelect: (Tab) -> Unit) {
     val colors = NavigationBarItemDefaults.colors(
         selectedIconColor = MaterialTheme.colorScheme.primary,
         selectedTextColor = MaterialTheme.colorScheme.primary,
-        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+        indicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        NavigationBarItem(
-            selected = selected == Tab.Timeline,
-            onClick = { onSelect(Tab.Timeline) },
-            icon = { Icon(Icons.AutoMirrored.Outlined.ViewList, contentDescription = null) },
-            label = { Text("Journal") },
-            colors = colors,
-        )
-        NavigationBarItem(
-            selected = selected == Tab.Calendar,
-            onClick = { onSelect(Tab.Calendar) },
-            icon = { Icon(Icons.Outlined.CalendarMonth, contentDescription = null) },
-            label = { Text("Calendar") },
-            colors = colors,
-        )
-        NavigationBarItem(
-            selected = selected == Tab.Search,
-            onClick = { onSelect(Tab.Search) },
-            icon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-            label = { Text("Search") },
-            colors = colors,
-        )
-        NavigationBarItem(
-            selected = selected == Tab.Media,
-            onClick = { onSelect(Tab.Media) },
-            icon = { Icon(Icons.Outlined.PhotoLibrary, contentDescription = null) },
-            label = { Text("Media") },
-            colors = colors,
-        )
+    Column {
+        HorizontalDivider(color = LocalJournalColors.current.line)
+        NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+            for ((tab, label, icon) in listOf(
+                Triple(Tab.Timeline, "Journal", Icons.AutoMirrored.Outlined.MenuBook),
+                Triple(Tab.Calendar, "Calendar", Icons.Outlined.CalendarMonth),
+                Triple(Tab.Search, "Search", Icons.Outlined.Search),
+                Triple(Tab.Media, "Media", Icons.Outlined.PhotoLibrary),
+            )) {
+                NavigationBarItem(
+                    selected = selected == tab,
+                    onClick = { onSelect(tab) },
+                    icon = { Icon(icon, contentDescription = null) },
+                    label = { Text(label, fontWeight = if (selected == tab) FontWeight.Bold else FontWeight.Medium) },
+                    colors = colors,
+                )
+            }
+        }
     }
 }
 

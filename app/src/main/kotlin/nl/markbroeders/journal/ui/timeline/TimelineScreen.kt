@@ -14,25 +14,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,7 +35,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -49,13 +46,16 @@ import nl.markbroeders.journal.data.TimelineDay
 import nl.markbroeders.journal.data.TimelineEntry
 import nl.markbroeders.journal.ui.components.EntryRow
 import nl.markbroeders.journal.ui.components.ListHeader
+import nl.markbroeders.journal.ui.components.NewEntryButton
+import nl.markbroeders.journal.ui.components.ScreenHeader
+import nl.markbroeders.journal.ui.components.dayAndMonthWithWeekday
 import nl.markbroeders.journal.ui.components.monthYear
+import nl.markbroeders.journal.ui.theme.JournalType
 import nl.markbroeders.journal.ui.theme.LocalJournalColors
-import nl.markbroeders.journal.ui.theme.journalTopBarColors
+import java.time.LocalDate
 import java.time.YearMonth
 
 /** Reverse-chronological feed of entries, from the index. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimelineScreen(
     viewModel: TimelineViewModel,
@@ -69,34 +69,22 @@ fun TimelineScreen(
     onOpenOnThisDay: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         bottomBar = bottomBar,
-        containerColor = LocalJournalColors.current.ground,
         topBar = {
-            LargeTopAppBar(
-                title = { Text("Journal") },
-                actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Outlined.Settings, contentDescription = "Vault settings")
-                    }
-                },
-                colors = journalTopBarColors(),
-                scrollBehavior = scrollBehavior,
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNewEntry,
-                shape = CircleShape,
-                containerColor = LocalJournalColors.current.header,
-                contentColor = LocalJournalColors.current.onHeader,
+            ScreenHeader(
+                "Journal",
+                Icons.AutoMirrored.Outlined.MenuBook,
+                MaterialTheme.colorScheme.primary,
+                subtitle = dayAndMonthWithWeekday(LocalDate.now()),
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "New entry")
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         },
+        floatingActionButton = { NewEntryButton(onNewEntry) },
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = state.refreshing,
@@ -198,32 +186,41 @@ private fun LoadMoreEffect(listState: LazyListState, onLoadMore: () -> Unit) {
     }
 }
 
-/** "On This Day · 3 entries from 2024 and 2025", opening the On This Day screen. */
+/** "On This Day · 2024 · 2025" in amber, opening the On This Day screen. */
 @Composable
 private fun OnThisDayBanner(days: List<TimelineDay>, onClick: () -> Unit) {
+    val colors = LocalJournalColors.current
     val entries = days.sumOf { it.entries.size }
     val years = days.map { it.date.year }.distinct().sorted()
-    val yearText = if (years.size == 1) "${years[0]}" else years.dropLast(1).joinToString(", ") + " and ${years.last()}"
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        shape = RoundedCornerShape(14.dp),
+        color = colors.amberSoft,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "On This Day: $entries ${if (entries == 1) "entry" else "entries"} from ${years.joinToString(", ")}"
+            },
     ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text("On This Day", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "$entries ${if (entries == 1) "entry" else "entries"} from $yearText",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.History, contentDescription = null, tint = colors.amber, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Text("On This Day", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text(
+                years.joinToString(" · "),
+                style = JournalType.meta,
+                fontWeight = FontWeight.Medium,
+                color = colors.amberText,
+                maxLines = 1,
+            )
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = colors.amberText,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }

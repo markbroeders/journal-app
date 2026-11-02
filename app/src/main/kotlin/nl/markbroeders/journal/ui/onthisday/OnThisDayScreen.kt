@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -23,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,7 +52,17 @@ fun OnThisDayScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("On This Day") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.History,
+                            contentDescription = null,
+                            tint = LocalJournalColors.current.amber,
+                            modifier = Modifier.padding(end = 10.dp),
+                        )
+                        Text("On This Day", fontWeight = FontWeight.Bold)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -66,7 +78,6 @@ fun OnThisDayScreen(
                 colors = journalTopBarColors(),
             )
         },
-        containerColor = LocalJournalColors.current.ground,
     ) { padding ->
         LazyColumn(
             Modifier
@@ -86,7 +97,7 @@ fun OnThisDayScreen(
                     }
                     Text(
                         dayAndMonth(date),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.weight(1f),
                     )

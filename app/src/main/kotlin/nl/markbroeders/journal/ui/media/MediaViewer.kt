@@ -1,5 +1,6 @@
 package nl.markbroeders.journal.ui.media
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -27,13 +28,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import coil3.compose.AsyncImage
 import nl.markbroeders.journal.ui.components.longDate
 import nl.markbroeders.journal.ui.components.timeLabel
@@ -52,6 +57,15 @@ fun MediaViewer(
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
+    // Light status bar icons on the black viewer; back to the theme's on leaving.
+    val view = LocalView.current
+    val lightPage = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    DisposableEffect(view, lightPage) {
+        val window = (view.context as? Activity)?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        controller?.isAppearanceLightStatusBars = false
+        onDispose { controller?.isAppearanceLightStatusBars = lightPage }
+    }
     val pager = rememberPagerState(initialPage = initial.coerceIn(0, (items.size - 1).coerceAtLeast(0))) { items.size }
     Box(
         Modifier

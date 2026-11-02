@@ -7,28 +7,33 @@ import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -38,14 +43,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -54,11 +58,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nl.markbroeders.journal.data.Appearance
@@ -67,9 +78,11 @@ import nl.markbroeders.journal.data.ThemeMode
 import nl.markbroeders.journal.data.VaultPaths
 import nl.markbroeders.journal.lock.isDeviceSecure
 import nl.markbroeders.journal.reminder.DailyReminder
-import nl.markbroeders.journal.ui.theme.journalTopBarColors
+import nl.markbroeders.journal.ui.theme.JournalType
+import nl.markbroeders.journal.ui.theme.LocalJournalColors
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Picks the vault root and the journal folder inside it. [onCancel] is null during first-run
@@ -98,10 +111,13 @@ fun SetupScreen(
     }
     if (onCancel != null) BackHandler(onBack = onCancel)
 
+    val ground = LocalJournalColors.current.ground
     Scaffold(
+        containerColor = ground,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         topBar = {
             TopAppBar(
-                title = { Text(if (onCancel == null) "Set up Journal" else "Settings") },
+                title = {},
                 navigationIcon = {
                     if (onCancel != null) {
                         IconButton(onClick = onCancel) {
@@ -109,7 +125,7 @@ fun SetupScreen(
                         }
                     }
                 },
-                colors = journalTopBarColors(),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = ground, scrolledContainerColor = ground),
             )
         },
     ) { padding ->
@@ -118,9 +134,14 @@ fun SetupScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Text(
+                if (onCancel == null) "Set up Journal" else "Settings",
+                style = JournalType.title,
+                modifier = Modifier.padding(start = 4.dp),
+            )
             if (accessLost && state.vault == null) {
                 Notice(
                     Icons.Filled.Warning,
@@ -132,6 +153,8 @@ fun SetupScreen(
                 "Journal reads and writes the daily notes in your Obsidian vault. Your notes stay " +
                     "plain Markdown files; nothing is moved or renamed.",
                 style = MaterialTheme.typography.bodyMedium,
+                color = LocalJournalColors.current.body,
+                modifier = Modifier.padding(horizontal = 4.dp),
             )
 
             VaultSection(state, onPick = { picker.launch(state.vault?.uri) })
@@ -143,7 +166,10 @@ fun SetupScreen(
             Button(
                 onClick = { viewModel.save(onDone) },
                 enabled = state.canSave,
-                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
             ) {
                 Text(if (onCancel == null) "Continue" else "Save")
             }
@@ -229,13 +255,13 @@ private fun JournalFolderSection(state: SetupUiState, onInputChange: (String) ->
 @Composable
 private fun AppearanceSection(appearance: Appearance, onChange: (Appearance) -> Unit) {
     SectionCard("Appearance") {
-        Text("Theme", style = MaterialTheme.typography.bodyMedium)
+        Text("Theme", style = SettingTitle)
         Choice(
             options = listOf(ThemeMode.SYSTEM to "System", ThemeMode.LIGHT to "Light", ThemeMode.DARK to "Dark"),
             selected = appearance.theme,
             onSelect = { onChange(appearance.copy(theme = it)) },
         )
-        Text("Font for entries", style = MaterialTheme.typography.bodyMedium)
+        Text("Font for entries", style = SettingTitle)
         Choice(
             options = listOf(true to "Serif", false to "Sans serif"),
             selected = appearance.serif,
@@ -244,16 +270,69 @@ private fun AppearanceSection(appearance: Appearance, onChange: (Appearance) -> 
     }
 }
 
+/** A segmented control as in Vink: the chosen option a white pill on a grey track. */
 @Composable
 private fun <T> Choice(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        options.forEachIndexed { index, (value, label) ->
-            SegmentedButton(
-                selected = value == selected,
-                onClick = { onSelect(value) },
-                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-            ) { Text(label) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .selectableGroup()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        for ((value, label) in options) {
+            val on = value == selected
+            Box(
+                Modifier
+                    .weight(1f)
+                    .heightIn(min = 38.dp)
+                    .then(if (on) Modifier.shadow(1.dp, RoundedCornerShape(7.dp)) else Modifier)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(if (on) MaterialTheme.colorScheme.surface else Color.Transparent)
+                    .selectable(selected = on, role = Role.RadioButton, onClick = { onSelect(value) }),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
+                    color = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
+    }
+}
+
+/** A setting with a coloured square icon, a title and a description, and its control on the right. */
+@Composable
+private fun SettingRow(
+    icon: ImageVector,
+    tint: Color,
+    title: String,
+    description: String,
+    control: @Composable () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(tint),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+        }
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp),
+        ) {
+            Text(title, style = SettingTitle)
+            Text(description, style = JournalType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        control()
     }
 }
 
@@ -266,15 +345,14 @@ private fun LockSection(enabled: Boolean, onChange: (Boolean) -> Unit) {
         deviceSecure = isDeviceSecure(context)
         onPauseOrDispose {}
     }
-    SectionCard("App lock") {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "Unlock with fingerprint, face or the device PIN/pattern whenever you open the app. " +
-                    "New entries can still be written from the widget, shortcuts and sharing.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(12.dp))
+    SectionCard("Privacy") {
+        SettingRow(
+            Icons.Outlined.Lock,
+            LocalJournalColors.current.teal,
+            "App lock",
+            "Unlock with fingerprint, face or the device PIN/pattern whenever you open the app. " +
+                "New entries can still be written from the widget, shortcuts and sharing.",
+        ) {
             Switch(
                 checked = enabled,
                 onCheckedChange = onChange,
@@ -301,14 +379,13 @@ private fun ReminderSection(reminder: ReminderSettings, onChange: (ReminderSetti
     }
     var pickingTime by remember { mutableStateOf(false) }
 
-    SectionCard("Daily reminder") {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "A notification at a set time, on days you haven't written anything yet.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(12.dp))
+    SectionCard("Reminder") {
+        SettingRow(
+            Icons.Outlined.Notifications,
+            LocalJournalColors.current.amber,
+            "Daily reminder",
+            "A notification at a set time, on days you haven't written anything yet.",
+        ) {
             Switch(
                 checked = reminder.enabled,
                 onCheckedChange = { on ->
@@ -320,10 +397,25 @@ private fun ReminderSection(reminder: ReminderSettings, onChange: (ReminderSetti
             )
         }
         if (reminder.enabled) {
-            OutlinedButton(onClick = { pickingTime = true }) {
-                Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Remind me at ${reminder.time.format(TIME_FORMAT)}")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Remind me at",
+                    style = SettingTitle,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 42.dp),
+                )
+                Surface(
+                    onClick = { pickingTime = true },
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ) {
+                    Text(
+                        reminder.time.format(TIME_FORMAT),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
             }
             if (!canNotify) {
                 Notice(Icons.Filled.Warning, "Notifications for Journal are turned off, so the reminder can't show.", isError = true)
@@ -368,6 +460,8 @@ private fun ReminderTimeDialog(initial: LocalTime, onDismiss: () -> Unit, onConf
     )
 }
 
+private val SettingTitle = TextStyle(fontSize = 15.sp, lineHeight = 20.sp)
+
 private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun checkMessage(check: JournalCheck): String = when (check) {
@@ -386,11 +480,24 @@ private fun checkMessage(check: JournalCheck): String = when (check) {
     }
 }
 
+/** A small-caps label over a white card with rounded corners, on the grey ground (as in Vink). */
 @Composable
 private fun SectionCard(title: String, content: @Composable () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            title.uppercase(Locale.getDefault()),
+            style = JournalType.label.copy(fontSize = 12.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 8.dp),
+        )
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(LocalJournalColors.current.card)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             content()
         }
     }
