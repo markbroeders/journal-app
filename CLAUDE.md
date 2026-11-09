@@ -261,11 +261,49 @@ Conflict handling: every save re-reads the file and applies the change to what i
 now. Adds always merge; an edit/delete only applies if the entry's raw text is unchanged
 since it was opened, otherwise the user chooses (keep mine / discard mine).
 
+## Desktop app (`:desktop`)
+
+Compose for Desktop (Compose Multiplatform, JVM) on top of `:core`; the Android app is untouched
+and shares no UI code with it (the theme, `EntryRow`, `MarkdownView` and the date formatting were
+copied over, so look changes need doing in both). Two panes: `Sidebar` (timeline, search) and the
+entry view (`EntryPane`) or the editor (`EditorPane` + `EditorSession`, a port of
+`EditorViewModel`), driven by `AppController` (selection, unsaved-changes and delete dialogs).
+The line between the panes can be dragged (`ColumnDivider`; 280 dp min, the entry keeps 420 dp;
+double-click resets to 400); the width is saved in `SettingsStore.sidebarWidth`.
+- `JournalFiles`: listing, `loadDay`, `save` (same read–merge–write as `JournalRepository`, with
+  `NoteEdits`), atomic replace via `.YYYY-MM-DD.md.tmp` + `ATOMIC_MOVE`, retry if the note's
+  mtime/size changed meanwhile, temp-file recovery, attachment lookup in the same folders and order
+  as `AttachmentScanner`.
+- `JournalIndex`: no database. Every note is parsed into memory (re-read only when mtime/size
+  change); a `WatchService` on the journal, year and attachment folders triggers rescans, so edits
+  from Obsidian/Syncthing show up live. Search is in memory with `SearchMatcher` (`:core`), which
+  matches like the Android FTS table (prefix words, phrases, accents/case ignored, nested tags).
+- `PhotoImporter`: Skia (bundled with Compose) decodes, applies EXIF orientation, scales to 2560 and
+  writes JPEG, named with `Photos.nextName`, like the Android importer.
+- `SettingsStore`: vault, journal folder, appearance, font in Java preferences (`~/.java/.userPrefs`).
+  Appearance → System reads GNOME's `color-scheme` (gsettings). File pickers use zenity when
+  installed (else Swing); links and media open with xdg-open; the entry view links to the note in
+  Obsidian (`obsidian://open?path=`).
+- Runtime: the JetBrains Runtime 21 (Gradle toolchain, foojay resolver; also bundled by
+  `createDistributable`). In a Wayland session `main()` switches JBR to its native Wayland toolkit
+  (`awt.toolkit.name=WLToolkit`, server-side decorations; JBR presets XToolkit, `JOURNAL_X11=1` keeps
+  it). Compose's own `Window` can't run there (needs an X11 drawing surface), so the UI is hosted in a
+  `JFrame` + `ComposePanel` with `compose.swing.render.on.graphics` (software rendering, idle CPU 0).
+  Without JBR or Wayland it's a normal Compose `Window` via X11/XWayland — blurry at fractional scales,
+  and tiling WMs need `_JAVA_AWT_WM_NONREPARENTING=1` (set by `:desktop:run` and the launcher).
+- The window root is `DesktopRoot` (theme + `Surface`): the Surface sets the default text colour,
+  without it un-coloured text is black in dark mode.
+- Not on the desktop (yet): calendar, On This Day, the media grid, the app lock, reminders, quick
+  capture. Videos show as a tile that opens in the system player.
+
 ## Build
 
 - `./gradlew :core:test` — parser/writer unit tests (fixtures in `core/src/test/resources/fixtures`)
 - `./gradlew :app:assembleDebug` — Android app (package `nl.markbroeders.journal`,
   minSdk 26, targetSdk 36, compileSdk 37)
+- `./gradlew :desktop:run` / `:desktop:test` — desktop app (JVM 21); UI tests drive
+  `JournalScreen` against a temp vault (`JOURNAL_SCREENSHOTS=dir` saves screenshots);
+  `desktop/install-linux.sh` installs it with an app-menu entry
 
 ## Testing
 

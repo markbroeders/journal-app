@@ -1,6 +1,6 @@
 # Journal
 
-A Day One-style journaling app for Android that reads and writes plain Markdown directly in an
+A Day One-style journaling app for Android (and the desktop) that reads and writes plain Markdown directly in an
 existing [Obsidian](https://obsidian.md) vault. There is no database of record and no account:
 your daily notes are the data, and anything written in the app looks right in Obsidian (and the
 other way round).
@@ -84,6 +84,24 @@ Requirements: JDK 17 or newer and the Android SDK (compileSdk 37). The app runs 
 On first launch, pick the vault's root folder (the one containing `.obsidian`) and the journal
 folder inside it.
 
+## Desktop app
+
+`desktop/` is the same journal for the desktop (Compose for Desktop), for writing on a laptop:
+the timeline and search on the left, the entry or the editor on the right. It reads and writes
+the vault folder directly, with the same parser, writer and merge rules as the Android app, so
+both can be used on one vault (kept in sync by e.g. Syncthing). It keeps nothing besides the
+notes: the journal is read into memory at start and followed with a file watcher, so changes
+made in Obsidian show up by themselves.
+
+```sh
+./gradlew :desktop:run        # run it from the source tree
+./gradlew :desktop:test       # file layer and UI tests
+desktop/install-linux.sh      # build it and add Journal to the app menu (Linux)
+```
+
+Shortcuts: Ctrl+N new entry, Ctrl+S save, Esc cancel, Ctrl+E edit, Ctrl+F search. It runs on the
+JetBrains Runtime (downloaded by Gradle), which makes it a native Wayland window on Wayland desktops.
+
 ## Project structure
 
 - `core/`: pure Kotlin, no Android. Parsing and writing daily notes, timeline model, Markdown
@@ -92,6 +110,9 @@ folder inside it.
 - `app/`: the Android app. Kotlin, Jetpack Compose and Material 3; vault access through the
   Storage Access Framework; a Room index (a rebuildable cache, never the source of truth) kept up
   to date by a background rescan with WorkManager.
+
+- `desktop/`: the desktop app. Compose for Desktop on top of `core/`; plain file access with
+  atomic saves, an in-memory index and a file watcher instead of Room and WorkManager.
 
 See [`CLAUDE.md`](CLAUDE.md) for the detailed design notes.
 

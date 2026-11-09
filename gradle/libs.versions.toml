@@ -13,6 +13,9 @@ coil = "3.6.3"
 exifinterface = "1.4.2"
 biometric = "1.1.0"
 fragment = "1.8.9"
+composeMultiplatform = "1.12.2"
+composeIconsExtended = "1.7.3"
+coroutines = "1.11.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -35,10 +38,13 @@ androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "b
 androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-video = { module = "io.coil-kt.coil3:coil-video", version.ref = "coil" }
+compose-desktop-icons = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "composeIconsExtended" }
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "coroutines" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
